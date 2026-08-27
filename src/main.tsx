@@ -1,5 +1,6 @@
 import React, {useMemo, useState} from 'react';
 import {createRoot} from 'react-dom/client';
+// @ts-expect-error Vite handles CSS imports at build time.
 import './styles.css';
 
 type Subject = {name:string; teacher:'Vikram'|'Raji'; icon:string; chapters:string[]};
