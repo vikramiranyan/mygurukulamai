@@ -1,3 +1,4 @@
+import {describe, expect, it} from 'vitest';
 import {isSessionValid, type AuthSession} from './googleAuth';
 
 const session: AuthSession = {
@@ -5,6 +6,16 @@ const session: AuthSession = {
   expiresAt: 2_000
 };
 
-if (!isSessionValid(session, 1_000)) throw new Error('Expected an unexpired session to be valid');
-if (isSessionValid(session, 2_000)) throw new Error('Expected an expired-at-boundary session to be invalid');
-if (isSessionValid(null, 1_000)) throw new Error('Expected a missing session to be invalid');
+describe('Google auth session validation', () => {
+  it('accepts an unexpired session', () => {
+    expect(isSessionValid(session, 1_000)).toBe(true);
+  });
+
+  it('rejects an expired-at-boundary session', () => {
+    expect(isSessionValid(session, 2_000)).toBe(false);
+  });
+
+  it('rejects a missing session', () => {
+    expect(isSessionValid(null, 1_000)).toBe(false);
+  });
+});
