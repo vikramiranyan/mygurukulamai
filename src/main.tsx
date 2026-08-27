@@ -15,10 +15,18 @@ const subjects: Subject[] = [
 type SpeechRecognitionLike = {continuous:boolean; interimResults:boolean; lang:string; onresult:((event:{results:ArrayLike<ArrayLike<{transcript:string}>>})=>void)|null; onend:(()=>void)|null; start:()=>void; stop:()=>void};
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 type Progress = Record<string,{checks:number;correct:number}>;
+type GoogleCredentialResponse = {credential:string};
+type GoogleIdConfiguration = {client_id:string;callback:(response:GoogleCredentialResponse)=>void;auto_select?:boolean;cancel_on_tap_outside?:boolean};
+type GoogleIdentity = {accounts:{id:{initialize:(config:GoogleIdConfiguration)=>void;prompt:()=>void;disableAutoSelect:()=>void}}};
+declare global {interface Window {google?:{accounts:{id:{initialize:(config:GoogleIdConfiguration)=>void;prompt:()=>void;disableAutoSelect:()=>void}}}}}
+
+const GOOGLE_CLIENT_ID='96891639304-4hi2fjfnleq59oktf3gflu9c4kei1o31.apps.googleusercontent.com';
 const profileKey='gurukulam-child-profile';
 const progressKey='gurukulam-progress';
 const authKey='gurukulam-parent-auth';
+const googleProfileKey='gurukulam-google-profile';
 function loadJson<T>(key:string,fallback:T):T{try{return JSON.parse(localStorage.getItem(key)||'null')??fallback}catch{return fallback}}
+function decodeGooglePayload(token:string):{name?:string;email?:string;picture?:string;sub?:string}{try{const part=token.split('.')[1];return JSON.parse(decodeURIComponent(escape(atob(part.replace(/-/g,'+').replace(/_/g,'/')))))}catch{return {}}}
 
 function App(){
  const [subject,setSubject]=useState(subjects[1]);
@@ -32,6 +40,7 @@ function App(){
  const [heard,setHeard]=useState('');
  const [voiceMessage,setVoiceMessage]=useState('');
  const [signedIn,setSignedIn]=useState(()=>loadJson<boolean>(authKey,false));
+ const [googleProfile,setGoogleProfile]=useState<{name?:string;email?:string;picture?:string}>(()=>loadJson(googleProfileKey,{}));
  const currentKey=`${subject.name}:${chapter}`;
  const teacher=subject.teacher;
  const pages=useMemo(()=>[1,2,3,4,5,6],[]);
@@ -44,6 +53,11 @@ function App(){
  useEffect(()=>{localStorage.setItem('gurukulam-approved',JSON.stringify(approved));},[approved]);
  useEffect(()=>{localStorage.setItem(progressKey,JSON.stringify(progress));},[progress]);
  useEffect(()=>{localStorage.setItem(authKey,JSON.stringify(signedIn));},[signedIn]);
+ useEffect(()=>{localStorage.setItem(googleProfileKey,JSON.stringify(googleProfile));},[googleProfile]);
+ useEffect(()=>{
+  const init=()=>{if(!window.google)return;window.google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:(response)=>{const p=decodeGooglePayload(response.credential);setGoogleProfile(p);setSignedIn(true);setVoiceMessage('Google account signed in successfully.');if(p.name&&!childName||childName==='My Child')setChildName(p.name);}})};
+  if(window.google)init();else{const timer=window.setInterval(()=>{if(window.google){window.clearInterval(timer);init();}},100);return()=>window.clearInterval(timer)}
+ },[]);
  const speak=(text:string)=>{if('speechSynthesis' in window){window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.rate=.92;u.lang=subject.name==='Hindi'?'hi-IN':'en-IN';window.speechSynthesis.speak(u);setVoiceMessage('Speaking…')}};
  const toggleListening=()=>{
   const Ctor=(window as Window & {webkitSpeechRecognition?:SpeechRecognitionConstructor;SpeechRecognition?:SpeechRecognitionConstructor}).SpeechRecognition||(window as Window & {webkitSpeechRecognition?:SpeechRecognitionConstructor}).webkitSpeechRecognition;
@@ -54,11 +68,12 @@ function App(){
   recognition.onend=()=>setListening(false); setListening(true);setVoiceMessage('Listening…');recognition.start();
  };
  const recordCheck=(result:'correct'|'retry')=>{setAnswer(result);setProgress(p=>({...p,[currentKey]:{checks:(p[currentKey]?.checks??0)+1,correct:(p[currentKey]?.correct??0)+(result==='correct'?1:0)}}));if(result==='correct')speak(`Excellent ${childName}! You understood ${chapter}.`);else speak(`Let's try ${chapter} again with a simpler explanation.`)};
- const signIn=()=>{setSignedIn(true);setVoiceMessage('Parent sign-in session created on this device. Google OAuth wiring is the next authentication integration step.')};
+ const signIn=()=>{if(!window.google){setVoiceMessage('Google Sign-In is loading. Please try again in a moment.');return}window.google.accounts.id.prompt()};
+ const signOut=()=>{window.google?.accounts.id.disableAutoSelect();setSignedIn(false);setGoogleProfile({});setVoiceMessage('Signed out of this device.');};
  return <div className="app">
-  <header><div><span className="logo">G</span><div className="brand"><strong>Gurukulam AI</strong><small>Personal AI Teacher</small></div></div><button className="signin" onClick={signedIn?()=>setSignedIn(false):signIn}>{signedIn?'✓ Parent signed in':'Sign in with Google'}</button></header>
+  <header><div><span className="logo">G</span><div className="brand"><strong>Gurukulam AI</strong><small>Personal AI Teacher</small></div></div><button className="signin" onClick={signedIn?signOut:signIn}>{signedIn?'✓ '+(googleProfile.name||'Parent signed in'):'Sign in with Google'}</button></header>
   <main>
-   <section className="hero"><div><span className="eyebrow">PARENT CONTROL CENTRE</span><h1>Plan today's learning.</h1><p>Choose the subject and chapter. Gurukulam AI will show the source pages for parent verification before teaching begins.</p>{signedIn&&<div className="auth-badge">✓ Parent session active · Child profile saved on this device</div>}</div><div className={`teacher-card ${teaching?'speaking':''}`}><div className="avatar">{teacher==='Vikram'?'👨‍🏫':'👩‍🏫'}</div><div><small>Today's teacher</small><h2>{teacher}</h2><span>{teacher==='Vikram'?'English · Maths · Computer':'EVS · Hindi · GK · Other subjects'}</span></div></div></section>
+   <section className="hero"><div><span className="eyebrow">PARENT CONTROL CENTRE</span><h1>Plan today's learning.</h1><p>Choose the subject and chapter. Gurukulam AI will show the source pages for parent verification before teaching begins.</p>{signedIn&&<div className="auth-badge">✓ Google account authenticated · {googleProfile.email||'Parent session active'} · Child profile saved</div>}</div><div className={`teacher-card ${teaching?'speaking':''}`}><div className="avatar">{teacher==='Vikram'?'👨‍🏫':'👩‍🏫'}</div><div><small>Today's teacher</small><h2>{teacher}</h2><span>{teacher==='Vikram'?'English · Maths · Computer':'EVS · Hindi · GK · Other subjects'}</span></div></div></section>
    <section className="workspace">
     <aside className="panel subjects"><h3>Subjects</h3>{subjects.map(s=><button key={s.name} className={s.name===subject.name?'selected':''} onClick={()=>{setSubject(s);setChapter(s.chapters[0]);setTeaching(false);setAnswer(null)}}><span>{s.icon}</span><b>{s.name}</b><em>{s.teacher}</em></button>)}</aside>
     <section className="panel chapter"><div className="panel-title"><div><small>STEP 1 · SELECT TOPIC</small><h2>{subject.name}</h2></div><span className="teacher-pill">{teacher === 'Vikram'?'👨‍🏫':'👩‍🏫'} {teacher}</span></div>
