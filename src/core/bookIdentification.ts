@@ -11,7 +11,7 @@ export type BookCoverMetadata = {
 export type BookCandidate = BookCoverMetadata & { confidence: number; matchedFields: string[] };
 const clean = (value: string | undefined): string => (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
 const normalizedIsbn = (value: string | undefined): string => (value ?? '').replace(/[^0-9x]/gi, '').toLowerCase();
-export function identifyBooksFromCover(cover: BookCoverMetadata, candidates: BookMetadataCandidate[], minimumConfidence = 0.55): BookCandidate[] {
+export function identifyBooksFromCover(cover: BookCoverMetadata, candidates: BookMetadataCandidate[], minimumConfidence = 0.3): BookCandidate[] {
   return candidates.map((candidate) => scoreBookCandidate(cover, candidate)).filter((candidate) => candidate.confidence >= minimumConfidence).sort((a,b) => b.confidence - a.confidence);
 }
 export type BookMetadataCandidate = BookCoverMetadata;
