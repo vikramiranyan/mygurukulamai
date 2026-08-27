@@ -55,7 +55,7 @@ function App(){
  useEffect(()=>{localStorage.setItem(authKey,JSON.stringify(signedIn));},[signedIn]);
  useEffect(()=>{localStorage.setItem(googleProfileKey,JSON.stringify(googleProfile));},[googleProfile]);
  useEffect(()=>{
-  const init=()=>{if(!window.google)return;window.google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:(response)=>{const p=decodeGooglePayload(response.credential);setGoogleProfile(p);setSignedIn(true);setVoiceMessage('Google account signed in successfully.');if(p.name&&!childName||childName==='My Child')setChildName(p.name);}})};
+  const init=()=>{if(!window.google)return;window.google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:(response)=>{const p=decodeGooglePayload(response.credential);setGoogleProfile(p);setSignedIn(true);setVoiceMessage('Google account signed in successfully.');if(p.name&&(!childName||childName==='My Child'))setChildName(p.name);}})};
   if(window.google)init();else{const timer=window.setInterval(()=>{if(window.google){window.clearInterval(timer);init();}},100);return()=>window.clearInterval(timer)}
  },[]);
  const speak=(text:string)=>{if('speechSynthesis' in window){window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.rate=.92;u.lang=subject.name==='Hindi'?'hi-IN':'en-IN';window.speechSynthesis.speak(u);setVoiceMessage('Speaking…')}};
