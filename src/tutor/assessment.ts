@@ -1,0 +1,4 @@
+export type CheckResult = { correct: boolean; score: number; diagnosis: 'mastered' | 'partial' | 'misconception' };
+export function evaluateKnowledgeCheck(correct: boolean, confidence = 1): CheckResult { const c=Math.max(0,Math.min(1,confidence)); return correct ? {correct:true,score:c,diagnosis:c>=0.8?'mastered':'partial'} : {correct:false,score:0,diagnosis:'misconception'}; }
+export function masteryUpdate(previous:number, result:CheckResult):number { const p=Math.max(0,Math.min(1,previous)); return Math.max(0,Math.min(1,p*0.7+result.score*0.3)); }
+export function remediation(result:CheckResult, concept:string):string { return result.diagnosis==='mastered' ? `Advance from ${concept}.` : result.diagnosis==='partial' ? `Give another guided example of ${concept}.` : `Reteach ${concept} from the simplest prerequisite.`; }
