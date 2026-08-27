@@ -21,7 +21,7 @@ export function scoreAnswers(answers: AnswerRecord[]): number {
 
 export function nextPhase(score: number): LearningPhase {
   if (score >= 85) return 'mastered';
-  if (score >= 60) return 'reteach';
+  if (score >= 60) return 'check';
   return 'reteach';
 }
 
