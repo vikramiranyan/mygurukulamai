@@ -34,9 +34,10 @@ export function decodeGoogleCredential(token: string): GoogleCredentialClaims | 
   try {
     const payload = token.split('.')[1];
     if (!payload) return null;
-    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
     const decoded = decodeURIComponent(
-      Array.from(atob(normalized), char => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`).join('')
+      Array.from(atob(padded), char => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`).join('')
     );
     return JSON.parse(decoded) as GoogleCredentialClaims;
   } catch {
