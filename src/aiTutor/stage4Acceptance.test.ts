@@ -1,0 +1,2 @@
+import{describe,it,expect}from'vitest';import{generateTeachingPlan}from'./teachingPlan';
+describe('Stage 4 acceptance',()=>{it('adapts teaching mode to child mastery and emits checks',()=>{for(const [mastery,mode]of[[.2,'reteach'],[.6,'practice'],[.95,'advance']]as const){const p=generateTeachingPlan({subject:'Maths',chapter:'Fractions',concepts:['fractions'],profile:{mastery}});expect(p.mode).toBe(mode);expect(p.steps.length).toBeGreaterThan(2);expect(p.checks).toBeGreaterThan(0);}})});
