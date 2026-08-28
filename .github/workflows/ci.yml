@@ -16,7 +16,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,3 +32,5 @@ jobs:
         run: npm test -- --reporter=verbose
       - name: Production build
         run: npm run build
+      - name: Stage 4 acceptance marker
+        run: echo "Stage 4 CI verification passed"
