@@ -26,7 +26,6 @@ declare global {
 
 const GOOGLE_CLIENT_ID = '96891639304-4hi2fjfnleq59oktf3gflu9c4kei1o31.apps.googleusercontent.com';
 const SESSION_KEY = 'gurukulam-auth-session';
-const LEGACY_KEYS = ['gurukulam-child-profiles', 'gurukulam-active-child', 'gurukulam-progress', 'gurukulam-approved'];
 const defaultProfiles: ChildProfile[] = [{id: 'child-1', name: 'My Child', grade: 'Grade 1'}];
 
 function loadJson<T>(storage: Storage, key: string, fallback: T): T {
@@ -54,21 +53,6 @@ function loadSession(): AuthSession | null {
   return session;
 }
 
-function migrateLegacyData(userId: string) {
-  const marker = `${accountPrefix(userId)}:legacy-migrated`;
-  if (localStorage.getItem(marker)) return;
-  const oldProfiles = loadJson<ChildProfile[] | null>(localStorage, LEGACY_KEYS[0], null);
-  const oldActive = loadJson<string | null>(localStorage, LEGACY_KEYS[1], null);
-  const oldProgress = loadJson<Progress | null>(localStorage, LEGACY_KEYS[2], null);
-  const oldApproved = loadJson<Record<string, boolean> | null>(localStorage, LEGACY_KEYS[3], null);
-  if (oldProfiles) saveAccount(userId, 'children', oldProfiles);
-  if (oldActive) saveAccount(userId, 'active-child', oldActive);
-  if (oldProgress) saveAccount(userId, 'progress', oldProgress);
-  if (oldApproved) saveAccount(userId, 'approved', oldApproved);
-  localStorage.setItem(marker, '1');
-  LEGACY_KEYS.forEach(key => localStorage.removeItem(key));
-}
-
 function App() {
   const [session, setSession] = useState<AuthSession | null>(() => loadSession());
   const [profiles, setProfiles] = useState<ChildProfile[]>(defaultProfiles);
@@ -90,7 +74,8 @@ function App() {
       setApproved({});
       return;
     }
-    migrateLegacyData(session.user.id);
+    // Never migrate unscoped legacy storage automatically. Doing so could assign
+    // one parent's old browser data to a different Google account.
     const loadedProfiles = loadAccount(session.user.id, 'children', defaultProfiles);
     setProfiles(loadedProfiles.length ? loadedProfiles : defaultProfiles);
     const savedActive = loadAccount<string>(session.user.id, 'active-child', loadedProfiles[0]?.id || 'child-1');
