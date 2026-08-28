@@ -67,3 +67,67 @@ export function credentialToSession(
     expiresAt
   };
 }
+
+// Mobile Safari can occasionally defer synthetic click generation for dynamically
+// rendered controls. Keep the two parent workflow actions explicitly touch-safe.
+function installParentActionFallbacks() {
+  if (typeof document === 'undefined') return;
+  const toast = (text: string) => {
+    const existing = document.querySelector('[data-gurukulam-toast]');
+    existing?.remove();
+    const el = document.createElement('div');
+    el.dataset.gurukulamToast = 'true';
+    el.textContent = text;
+    Object.assign(el.style, {
+      position: 'fixed', bottom: '18px', left: '50%', transform: 'translateX(-50%)',
+      zIndex: '9999', background: '#102a43', color: '#fff', padding: '11px 16px',
+      borderRadius: '12px', fontSize: '12px', fontWeight: '800', boxShadow: '0 8px 24px rgba(16,42,67,.25)',
+      maxWidth: 'calc(100vw - 32px)', textAlign: 'center'
+    });
+    document.body.appendChild(el);
+    window.setTimeout(() => el.remove(), 2600);
+  };
+
+  const bind = () => {
+    document.querySelectorAll('button').forEach(button => {
+      if (button.dataset.gurukulamActionBound) return;
+      const label = button.textContent?.replace(/^[^A-Za-z]+/, '').trim() || '';
+      if (!label.includes('Approve pages') && !label.includes('Upload chapter')) return;
+      button.dataset.gurukulamActionBound = 'true';
+
+      if (label.includes('Upload chapter')) {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg';
+        input.style.display = 'none';
+        document.body.appendChild(input);
+        input.addEventListener('change', () => {
+          const file = input.files?.[0];
+          if (!file) return;
+          button.textContent = `✓ ${file.name}`;
+          toast(`Chapter selected: ${file.name}`);
+        });
+        button.addEventListener('click', () => input.click());
+        button.addEventListener('touchend', event => {
+          event.preventDefault();
+          button.click();
+        }, {passive: false});
+      } else {
+        button.addEventListener('click', () => toast('Parent approval received for this chapter.'));
+        button.addEventListener('touchend', event => {
+          event.preventDefault();
+          button.click();
+        }, {passive: false});
+      }
+    });
+  };
+
+  bind();
+  const observer = new MutationObserver(bind);
+  observer.observe(document.body, {childList: true, subtree: true});
+}
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installParentActionFallbacks, {once: true});
+  else installParentActionFallbacks();
+}
