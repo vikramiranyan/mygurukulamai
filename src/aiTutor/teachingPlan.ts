@@ -1,0 +1,4 @@
+export type LearningProfile={mastery:number;age?:number;recentMistakes?:string[]};
+export type LessonContext={subject:string;chapter:string;concepts:string[];profile:LearningProfile};
+export type TeachingPlan={mode:'reteach'|'practice'|'advance';steps:string[];checks:number};
+export function generateTeachingPlan(c:LessonContext):TeachingPlan{const m=Math.max(0,Math.min(1,c.profile.mastery)); if(m<.5)return{mode:'reteach',steps:['Explain simply','Give a worked example','Ask a guided question','Check understanding'],checks:2}; if(m<.8)return{mode:'practice',steps:['Briefly review','Give graduated examples','Ask Socratic questions','Check understanding'],checks:3}; return{mode:'advance',steps:['Quick retrieval check','Introduce next concept','Apply with a challenge','Check mastery'],checks:2};}
