@@ -1,3 +1,5 @@
+import'../chapters/chapterViewer';
+
 export type VoiceError = 'unsupported'|'permission-denied'|'network'|'no-speech'|'audio-capture'|'aborted'|'service-not-allowed'|'unknown';
 export type SpeechResult={text:string;confidence?:number;final:boolean};
 export type VoiceTurn={startedAt:number;endedAt:number;durationMs:number};
