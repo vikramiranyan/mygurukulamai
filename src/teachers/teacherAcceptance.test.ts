@@ -1,0 +1,2 @@
+import {describe,it,expect,vi} from 'vitest'; import {speakTeacherTurn} from './teacherVoiceAdapter';
+describe('Stage 6 acceptance',()=>{it('routes approved curriculum through teacher voice',async()=>{const spoken:string[]=[];const g={speakResponse:vi.fn(async(t:string)=>{spoken.push(t)}),stop:vi.fn()} as any;const t=await speakTeacherTurn(g,{text:'start',language:'en-IN'},{subject:'English',chapter:'Reading',approved:true},'explain');expect(t.teacher).toBe('Vikram');expect(spoken[0]).toContain('Reading');});});
