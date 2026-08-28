@@ -1,0 +1,3 @@
+import {describe,it,expect,vi} from 'vitest';
+import {BrowserVoice,VoiceTurnDetector,paceForChild} from './browserVoice';
+describe('Stage 5 voice integration gates',()=>{it('detects a voice turn',()=>{const d=new VoiceTurnDetector();const s=d.start();const t=d.end();expect(t.startedAt).toBe(s);expect(t.endedAt).toBeGreaterThanOrEqual(s);expect(t.durationMs).toBeGreaterThanOrEqual(0);});it('paces child response text',()=>expect(paceForChild('  Hello   child!  Let us learn. ')).toBe('Hello child! Let us learn.'));it('exposes browser STT/TTS adapters without requiring browser APIs in CI',()=>{const b=new BrowserVoice();expect(typeof b.supportsSTT()).toBe('boolean');expect(typeof b.supportsTTS()).toBe('boolean');});});
