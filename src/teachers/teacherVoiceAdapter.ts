@@ -1,0 +1,2 @@
+import type { VoiceGateway, VoiceRequest } from '../voice/voiceGateway'; import {createTeacherTurn,type CurriculumContext} from './teacherCurriculumVoice';
+export async function speakTeacherTurn(gateway:VoiceGateway,request:VoiceRequest,context:CurriculumContext,phase:'explain'|'ask'|'check'|'reteach'='explain'){const turn=createTeacherTurn(request,context,phase); await gateway.speakResponse(turn.reply,request.language); return turn;}
