@@ -30,6 +30,8 @@ jobs:
         run: npm run typecheck
       - name: Unit and integration tests
         run: npm test -- --reporter=verbose
+      - name: Stage 8 regression suite
+        run: npm run test:stage8
       - name: Production build
         run: npm run build
       - name: Stage 4 acceptance marker
