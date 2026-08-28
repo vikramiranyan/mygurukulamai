@@ -17,7 +17,7 @@ function mapVoiceError(error:any):VoiceError{
 }
 
 export class BrowserVoice {
- private recognition:any=null; private utterance:SpeechSynthesisUtterance|null=null;
+ private recognition:any=null; private utterance:SpeechSynthesisUtterance|null=null; private speakTimer:number|null=null;
  supportsSTT(){return typeof window!=='undefined'&&!!((window as any).SpeechRecognition||(window as any).webkitSpeechRecognition);}
  supportsTTS(){return typeof window!=='undefined'&&'speechSynthesis'in window;}
  async requestMicrophone(){if(typeof navigator==='undefined'||!navigator.mediaDevices?.getUserMedia)throw new Error('unsupported');try{const s=await navigator.mediaDevices.getUserMedia({audio:true});s.getTracks().forEach(t=>t.stop());return true;}catch(e){throw new Error(mapVoiceError(e));}}
@@ -33,8 +33,22 @@ export class BrowserVoice {
   try{r.start();return true;}catch(e){if(this.recognition===r)this.recognition=null;onError(mapVoiceError(e));return false;}
  }
  stopSTT(){try{this.recognition?.stop();}catch{}this.recognition=null;}
- speak(text:string,language='en-IN',rate=0.9){if(!this.supportsTTS())return Promise.reject(new Error('unsupported'));return new Promise<void>((resolve,reject)=>{const u=new SpeechSynthesisUtterance(text);u.lang=language;u.rate=rate;u.onend=()=>{this.utterance=null;resolve()};u.onerror=()=>{this.utterance=null;reject(new Error('tts-failed'))};this.utterance=u;window.speechSynthesis.cancel();window.speechSynthesis.speak(u);});}
- stopSpeaking(){if(this.supportsTTS())window.speechSynthesis.cancel();this.utterance=null;}
+ speak(text:string,language='en-IN',rate=0.9){
+  if(!this.supportsTTS())return Promise.reject(new Error('unsupported'));
+  this.stopSpeaking();
+  return new Promise<void>((resolve,reject)=>{
+   let settled=false;
+   const finish=(ok:boolean,error?:Error)=>{if(settled)return;settled=true;if(this.speakTimer!==null){window.clearTimeout(this.speakTimer);this.speakTimer=null}this.utterance=null;ok?resolve():reject(error||new Error('tts-failed'))};
+   const u=new SpeechSynthesisUtterance(text);u.lang=language;u.rate=rate;
+   u.onstart=()=>{if(this.speakTimer!==null)window.clearTimeout(this.speakTimer);this.speakTimer=window.setTimeout(()=>finish(false,new Error('tts-timeout')),15000)};
+   u.onend=()=>finish(true);
+   u.onerror=(e:any)=>finish(false,new Error(String(e?.error||'tts-failed')));
+   this.utterance=u;
+   window.speechSynthesis.cancel();
+   window.setTimeout(()=>{if(!settled){window.speechSynthesis.resume();window.speechSynthesis.speak(u);if(this.speakTimer===null)this.speakTimer=window.setTimeout(()=>finish(false,new Error('tts-timeout')),15000)}},80);
+  });
+ }
+ stopSpeaking(){if(this.speakTimer!==null&&typeof window!=='undefined'){window.clearTimeout(this.speakTimer);this.speakTimer=null}if(this.supportsTTS())window.speechSynthesis.cancel();this.utterance=null;}
 }
 
 export class VoiceTurnDetector {private started=0;start(){this.started=Date.now();return this.started;}end(){const ended=Date.now();const started=this.started||ended;this.started=0;return{startedAt:started,endedAt:ended,durationMs:ended-started} as VoiceTurn;}}
