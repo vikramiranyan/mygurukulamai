@@ -1,0 +1,51 @@
+/* Desktop/laptop density pass: keep the composition compact without affecting mobile/tablet stacking. */
+@media (min-width: 901px) {
+  .login-content {
+    min-height: auto !important;
+    padding-top: 28px !important;
+    padding-bottom: 8px !important;
+    gap: 34px !important;
+  }
+
+  .login-card {
+    margin-top: 4px !important;
+    padding: 28px 30px 24px !important;
+  }
+
+  .login-art-card {
+    margin-top: 18px !important;
+    height: 320px !important;
+    min-height: 0 !important;
+  }
+
+  .login-footer {
+    padding-top: 0 !important;
+    padding-bottom: 12px !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  .login-content {
+    width: min(1160px, 92vw) !important;
+    grid-template-columns: minmax(0, 1.3fr) minmax(360px, .7fr) !important;
+    gap: 38px !important;
+  }
+
+  .login-card {
+    max-width: 390px !important;
+  }
+
+  .login-art-card {
+    height: 315px !important;
+  }
+}
+
+@media (min-width: 1600px) {
+  .login-content {
+    width: min(1180px, 90vw) !important;
+  }
+
+  .login-art-card {
+    height: 325px !important;
+  }
+}
