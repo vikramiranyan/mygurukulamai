@@ -1,51 +1,58 @@
-/* Desktop/laptop density pass: keep the composition compact without affecting mobile/tablet stacking. */
+/* Senior-designer desktop density pass: compact, intentional first viewport. */
 @media (min-width: 901px) {
-  .login-content {
-    min-height: auto !important;
-    padding-top: 28px !important;
-    padding-bottom: 8px !important;
-    gap: 34px !important;
-  }
-
-  .login-card {
-    margin-top: 4px !important;
-    padding: 28px 30px 24px !important;
-  }
-
-  .login-art-card {
-    margin-top: 18px !important;
-    height: 320px !important;
-    min-height: 0 !important;
-  }
-
-  .login-footer {
-    padding-top: 0 !important;
-    padding-bottom: 12px !important;
-  }
-}
-
-@media (min-width: 1200px) {
+  .login-header { min-height: 68px !important; }
   .login-content {
     width: min(1160px, 92vw) !important;
-    grid-template-columns: minmax(0, 1.3fr) minmax(360px, .7fr) !important;
-    gap: 38px !important;
+    padding-top: 20px !important;
+    padding-bottom: 8px !important;
+    grid-template-columns: minmax(0, 1.30fr) minmax(370px, .70fr) !important;
+    gap: 42px !important;
+    min-height: 0 !important;
   }
-
+  .login-copy { max-width: 650px !important; }
+  .login-eyebrow { margin-bottom: 8px !important; }
+  .login-copy h1 {
+    font-size: clamp(48px, 4.35vw, 60px) !important;
+    line-height: .98 !important;
+    letter-spacing: -1.6px !important;
+  }
+  .login-copy p {
+    margin: 13px 0 !important;
+    font-size: 16px !important;
+    line-height: 1.5 !important;
+  }
+  .login-trust { gap: 8px !important; }
+  .login-trust span { padding: 8px 12px !important; font-size: 12px !important; }
+  .login-art-card {
+    margin-top: 14px !important;
+    height: 285px !important;
+    min-height: 0 !important;
+    border-radius: 26px !important;
+  }
   .login-card {
-    max-width: 390px !important;
+    margin-top: 0 !important;
+    padding: 28px 28px 24px !important;
+    max-width: 410px !important;
+    border-radius: 26px !important;
   }
-
-  .login-art-card {
-    height: 315px !important;
-  }
+  .login-card-icon { width: 46px !important; height: 46px !important; margin-bottom: 14px !important; }
+  .login-card h2 { font-size: 29px !important; margin: 7px 0 !important; }
+  .login-card p { margin-bottom: 17px !important; line-height: 1.5 !important; }
+  .login-google-button { min-height: 54px !important; }
+  .login-privacy { margin-top: 12px !important; }
+  .login-footer { padding: 0 20px 10px !important; }
 }
-
-@media (min-width: 1600px) {
+@media (min-width: 1200px) {
   .login-content {
-    width: min(1180px, 90vw) !important;
+    width: min(1160px, 91vw) !important;
+    grid-template-columns: minmax(0, 1.31fr) minmax(390px, .69fr) !important;
+    gap: 46px !important;
   }
-
-  .login-art-card {
-    height: 325px !important;
-  }
+  .login-art-card { height: 295px !important; }
 }
+@media (min-width: 1500px) {
+  .login-content { width: min(1180px, 88vw) !important; }
+  .login-copy h1 { font-size: 60px !important; }
+  .login-art-card { height: 300px !important; }
+}
+@media (max-width: 900px) { .login-content { min-height: 0 !important; } }
