@@ -30,11 +30,12 @@
     display: block !important;
   }
 
-  /* Google credential control: kept fully inside the artwork's reserved area. */
+  /* Google credential control: aligned within the artwork's reserved area,
+     with balanced side margins and enough separation from the feature list. */
   .login-card {
     position: absolute !important;
     left: 69.2% !important;
-    top: 31.2% !important;
+    top: 29.0% !important;
     width: 28% !important;
     max-width: none !important;
     margin: 0 !important;
@@ -55,7 +56,7 @@
     display: none !important;
   }
 
-  /* Contrasting primary action; the artwork itself remains untouched. */
+  /* Functional Google action; no decorative button is baked into the artwork. */
   .login-google-button {
     width: 100% !important;
     min-height: clamp(56px, 6.8vh, 72px) !important;
