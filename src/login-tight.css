@@ -59,17 +59,19 @@
     width: 100% !important;
     min-height: clamp(56px, 6.8vh, 72px) !important;
     padding: 0 24px !important;
-    border: 1px solid rgba(210, 205, 195, .95) !important;
+    border: 1px solid rgba(221, 176, 111, .62) !important;
     border-radius: 16px !important;
-    background: rgba(255,255,255,.98) !important;
+    /* Match the warm cream/peach credential area in the artwork instead of using a white floating button. */
+    background: rgba(253, 244, 229, .96) !important;
     color: #173d34 !important;
     font-size: clamp(15px, 1.15vw, 20px) !important;
-    box-shadow: 0 10px 28px rgba(46, 54, 45, .14) !important;
+    box-shadow: 0 6px 18px rgba(94, 70, 36, .08) !important;
   }
 
   .login-google-button:hover {
     transform: translateY(-1px) !important;
-    box-shadow: 0 14px 32px rgba(46, 54, 45, .18) !important;
+    background: rgba(250, 238, 219, .98) !important;
+    box-shadow: 0 9px 22px rgba(94, 70, 36, .11) !important;
   }
 
   .google-g {
