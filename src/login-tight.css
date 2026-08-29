@@ -1,29 +1,17 @@
-/* Senior-designer desktop density pass: compact, intentional first viewport. */
+/* Gurukulam AI login — compact, focused desktop composition. */
 @media (min-width: 901px) {
-  .login-header { min-height: 68px !important; position: relative !important; }
-  .login-header::after {
-    content: 'LEARN  ·  EXPLORE  ·  GROW\A A personal AI teacher for every curious mind';
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    white-space: pre;
-    text-align: center;
-    line-height: 1.65;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 2.6px;
-    color: #42665d;
-    pointer-events: none;
-  }
+  /* No separate header: the login experience starts with the main composition. */
+  .login-header { display: none !important; }
+
   .login-content {
     width: min(1160px, 92vw) !important;
-    padding-top: 18px !important;
+    padding-top: 28px !important;
     padding-bottom: 8px !important;
     grid-template-columns: minmax(0, 1.30fr) minmax(370px, .70fr) !important;
     gap: 38px !important;
     min-height: 0 !important;
   }
+
   .login-copy { max-width: 650px !important; }
   .login-eyebrow { margin-bottom: 8px !important; }
   .login-copy h1 {
@@ -31,19 +19,20 @@
     line-height: .98 !important;
     letter-spacing: -1.6px !important;
   }
-  .login-copy p {
-    margin: 12px 0 !important;
-    font-size: 16px !important;
-    line-height: 1.48 !important;
-  }
-  .login-trust { gap: 8px !important; }
+
+  /* User-requested: remove the explanatory short description. */
+  .login-copy p { display: none !important; }
+
+  .login-trust { gap: 8px !important; margin-top: 18px !important; }
   .login-trust span { padding: 8px 12px !important; font-size: 12px !important; }
+
   .login-art-card {
     margin-top: 14px !important;
     height: 285px !important;
     min-height: 0 !important;
     border-radius: 26px !important;
   }
+
   .login-card {
     margin-top: 0 !important;
     padding: 28px 28px 24px !important;
@@ -57,6 +46,7 @@
   .login-privacy { margin-top: 12px !important; }
   .login-footer { padding: 0 20px 10px !important; }
 }
+
 @media (min-width: 1200px) {
   .login-content {
     width: min(1160px, 91vw) !important;
@@ -65,10 +55,13 @@
   }
   .login-art-card { height: 295px !important; }
 }
+
 @media (min-width: 1500px) {
   .login-content { width: min(1180px, 88vw) !important; }
   .login-copy h1 { font-size: 60px !important; }
   .login-art-card { height: 300px !important; }
 }
-@media (max-width: 900px) { .login-content { min-height: 0 !important; } }
-@media (max-width: 560px) { .login-header::after { display: none !important; } }
+
+@media (max-width: 900px) {
+  .login-content { min-height: 0 !important; }
+}
