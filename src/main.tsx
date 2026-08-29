@@ -1,1 +1,212 @@
-import React,{useEffect,useMemo,useState}from'react';import{createRoot}from'react-dom/client';import'./styles.css';import'./login-tight.css';import{credentialToSession,isSessionValid,type AuthSession}from'./auth/googleAuth';import{BrowserVoice}from'./voice/browserVoice';import{createTeacherTurn}from'./teachers/teacherCurriculumVoice';type Subject={name:string;teacher:'Vikram'|'Raji';icon:string;chapters:string[]};const subjects:Subject[]=[{name:'English',teacher:'Vikram',icon:'📘',chapters:['Sounds & Letters','Reading','Vocabulary','Grammar']},{name:'Maths',teacher:'Vikram',icon:'➗',chapters:['Numbers','Addition','Subtraction','Shapes']},{name:'Computer',teacher:'Vikram',icon:'💻',chapters:['Computer Basics','Parts of a Computer','Digital Safety']},{name:'EVS',teacher:'Raji',icon:'🌱',chapters:['My Family','Plants Around Us','Animals','Our Neighbourhood']},{name:'Hindi',teacher:'Raji',icon:'अ',chapters:['वर्णमाला','शब्द','पठन','लेखन']},{name:'GK',teacher:'Raji',icon:'🌍',chapters:['My World','Nature','People & Places','Fun Facts']}];type ChildProfile={id:string;name:string;grade:string};type Progress=Record<string,{checks:number;correct:number}>;type GoogleCredentialResponse={credential:string};type GoogleIdConfiguration={client_id:string;callback:(r:GoogleCredentialResponse)=>void};declare global{interface Window{google?:{accounts:{id:{initialize:(c:GoogleIdConfiguration)=>void;prompt:()=>void;disableAutoSelect:()=>void}}}}}const GOOGLE_CLIENT_ID='96891639304-4hi2fjfnleq59oktf3gflu9c4kei1o31.apps.googleusercontent.com',SESSION_KEY='gurukulam-auth-session',defaultProfiles=[{id:'child-1',name:'My Child',grade:'Grade 1'}];function loadJson<T>(s:Storage,k:string,f:T):T{try{return JSON.parse(s.getItem(k)||'null')??f}catch{return f}}function prefix(id:string){return`gurukulam:${encodeURIComponent(id)}`}function loadAccount<T>(id:string,k:string,f:T){return loadJson(localStorage,`${prefix(id)}:${k}`,f)}function saveAccount<T>(id:string,k:string,v:T){localStorage.setItem(`${prefix(id)}:${k}`,JSON.stringify(v))}function loadSession():AuthSession|null{const s=loadJson<AuthSession|null>(sessionStorage,SESSION_KEY,null);if(!isSessionValid(s)){sessionStorage.removeItem(SESSION_KEY);return null}return s}function App(){const[session,setSession]=useState<AuthSession|null>(()=>loadSession()),[profiles,setProfiles]=useState<ChildProfile[]>(defaultProfiles),[activeProfileId,setActiveProfileId]=useState('child-1'),[progress,setProgress]=useState<Progress>({}),[approved,setApproved]=useState<Record<string,boolean>>({}),[subject,setSubject]=useState(subjects[1]),[chapter,setChapter]=useState('Addition'),[teaching,setTeaching]=useState(false),[voiceState,setVoiceState]=useState<'idle'|'speaking'|'listening'|'processing'>('idle'),[message,setMessage]=useState('');const pages=useMemo(()=>[1,2,3,4,5,6],[]),browser=useMemo(()=>new BrowserVoice(),[]);useEffect(()=>{if(!session){setProfiles(defaultProfiles);setActiveProfileId('child-1');setProgress({});setApproved({});return}const p=loadAccount(session.user.id,'children',defaultProfiles);setProfiles(p.length?p:defaultProfiles);const a=loadAccount<string>(session.user.id,'active-child',p[0]?.id||'child-1');setActiveProfileId(p.some(x=>x.id===a)?a:p[0]?.id||'child-1');setProgress(loadAccount(session.user.id,'progress',{}));setApproved(loadAccount(session.user.id,'approved',{}));setTeaching(false)},[session?.user.id]);useEffect(()=>{if(session){saveAccount(session.user.id,'children',profiles);saveAccount(session.user.id,'active-child',activeProfileId);saveAccount(session.user.id,'progress',progress);saveAccount(session.user.id,'approved',approved)}},[session?.user.id,profiles,activeProfileId,progress,approved]);useEffect(()=>{if(session){sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));const t=window.setTimeout(()=>{sessionStorage.removeItem(SESSION_KEY);setSession(null)},Math.max(session.expiresAt-Date.now(),0));return()=>window.clearTimeout(t)}},[session]);useEffect(()=>{const init=()=>window.google?.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:r=>{const n=credentialToSession(r.credential,GOOGLE_CLIENT_ID);if(n){setSession(n);setMessage('Google authentication successful. Welcome to Gurukulam AI.')}else setMessage('Google authentication could not be verified.')}});if(window.google)init();else{const t=window.setInterval(()=>{if(window.google){window.clearInterval(t);init()}},100);return()=>window.clearInterval(t)}},[]);const active=profiles.find(p=>p.id===activeProfileId)||profiles[0],key=`${active.id}:${subject.name}:${chapter}`,teacher=subject.teacher;const listen=()=>{if(!browser.supportsSTT()){setVoiceState('idle');setMessage('Speech recognition is not supported in this browser.');return}setVoiceState('listening');setMessage(`${teacher} is listening to ${active.name}… speak now.`);const started=browser.startSTT('en-IN',r=>{if(!r.final)return;browser.stopSTT();setVoiceState('processing');setMessage(`${active.name} said: “${r.text}”`);setTimeout(async()=>{setVoiceState('speaking');try{await browser.speak(`Thank you, ${active.name}. I heard you say ${r.text}. Good thinking! Now let’s continue learning ${chapter}.`,'en-IN');setVoiceState('idle');setMessage(`${teacher} is ready for your next answer. Tap Speak answer to continue.`)}catch{setVoiceState('idle');setMessage('Teacher voice stopped. Tap Speak answer to continue.')}},250)},e=>{setVoiceState('idle');setMessage(e==='permission-denied'?`Microphone permission is needed, ${active.name}. Tap Speak answer and allow microphone access.`:e==='no-speech'?`I did not hear you, ${active.name}. Tap Speak answer and try again.`:e==='audio-capture'?`The microphone could not be accessed, ${active.name}. Check microphone permission and tap Speak answer again.`:e==='service-not-allowed'?`Speech recognition is not available in this browser session. Tap Speak answer again or use Safari with microphone permission enabled.`:`Voice input could not start (${e}). Tap Speak answer to retry.`)});if(!started)setVoiceState('idle')};const startTeaching=async()=>{if(!approved[key]){setMessage('Parent approval is required before teaching starts.');return}setTeaching(true);setMessage(`${teacher} is preparing ${active.name}'s lesson…`);try{if(!browser.supportsTTS())throw Error('Text-to-speech is not supported in this browser.');if(!browser.supportsSTT())throw Error('Speech recognition is not supported in this browser.');const t=createTeacherTurn({text:`Start ${chapter}`,language:'en-IN'},{subject:subject.name,chapter,pages,approved:true},'explain');setVoiceState('speaking');await browser.speak(`Hello ${active.name}! I’m ${t.teacher}, your teacher. Today we are going to learn ${chapter}. I’ll explain it first, then I’ll ask you a question. When I finish, tap Speak answer and I’ll listen to you.`,'en-IN');setVoiceState('idle');setMessage(`${teacher} has finished explaining. Tap Speak answer to answer the question.`)}catch(e){setVoiceState('idle');setMessage(e instanceof Error?e.message:'Teacher voice could not start.')}};const replay=()=>startTeaching();const stop=()=>{browser.stopSTT();browser.stopSpeaking();setVoiceState('idle');setMessage('Lesson stopped.');};if(!session)return <div className="login-screen" role="main"><header className="login-header"><div className="login-brand"><span className="login-logo">G</span><span><strong>Gurukulam AI</strong><small>Learning made joyful</small></span></div><span className="login-parent-badge">🔒 Parent-controlled</span></header><div className="login-content"><section className="login-hero"><div className="login-copy"><span className="login-eyebrow">A HAPPY PLACE TO LEARN</span><h1>Every lesson can become an adventure.</h1><p>Welcome to a warm, playful learning world where your child can learn, explore and grow with a personal AI teacher.</p><div className="login-trust"><span>🌱 Safe</span><span>🧠 Personalised</span><span>✨ Joyful</span></div></div><div className="login-art-card"><img src="./assets/gurukulam-two-girls-3d.png" alt="Two South Indian girls learning together"/><div className="login-spark spark-one">✦</div><div className="login-spark spark-two">✦</div></div></section><section className="login-card"><div className="login-card-icon">🪔</div><span className="login-card-eyebrow">PARENT SIGN-IN</span><h2>Let’s start the adventure!</h2><p>Sign in securely to set up and guide your child’s learning journey.</p><button className="login-google-button" aria-label="Continue with Google" onClick={()=>window.google?.accounts.id.prompt()}><span className="google-g">G</span><span>Continue with Google</span><span className="google-arrow">→</span></button><small className="login-privacy">Your account keeps your child’s learning space private and parent-controlled.</small>{message&&<div className="login-message-overlay" role="status">{message}</div>}</section></div><footer className="login-footer">Gurukulam AI · Learn with curiosity, grow with confidence</footer></div>;const total=Object.entries(progress).filter(([k])=>k.startsWith(`${active.id}:`)),checks=total.reduce((n,[,p])=>n+p.checks,0),correct=total.reduce((n,[,p])=>n+p.correct,0);return <div className="app"><header><div><span className="logo">G</span><div className="brand"><strong>Gurukulam AI</strong><small>Personal AI Teacher</small></div></div><button className="signin" onClick={()=>{window.google?.accounts.id.disableAutoSelect();sessionStorage.removeItem(SESSION_KEY);setSession(null)}}>Sign out</button></header><main><section className="hero"><div><span className="eyebrow">PARENT DASHBOARD</span><h1>Plan today's learning.</h1><p>Welcome, {session.user.displayName}. Choose a child, subject and chapter to begin.</p><div className="auth-badge">✓ Google authenticated · Parent controls unlocked</div></div><div className="teacher-card"><div className="avatar">{teacher==='Vikram'?'👨‍🏫':'👩‍🏫'}</div><div><small>Today's teacher</small><h2>{teacher}</h2><span>{teacher==='Vikram'?'English · Maths · Computer':'EVS · Hindi · GK'}</span></div></div></section><section className="panel progress-board"><div><small>CHILD PROFILES</small><h3>{profiles.length} profile{profiles.length===1?'':'s'}</h3><p>Separate learning progress for every child.</p></div><div className="actions"><select value={activeProfileId} onChange={e=>setActiveProfileId(e.target.value)}>{profiles.map(p=><option key={p.id} value={p.id}>{p.name} · {p.grade}</option>)}</select></div></section><section className="workspace"><aside className="panel subjects"><h3>Subjects</h3>{subjects.map(s=><button key={s.name} className={s.name===subject.name?'selected':''} onClick={()=>{stop();setSubject(s);setChapter(s.chapters[0]);setTeaching(false)}}><span>{s.icon}</span><b>{s.name}</b><em>{s.teacher}</em></button>)}</aside><section className="panel chapter"><div className="panel-title"><div><small>STEP 1 · SELECT TOPIC</small><h2>{subject.name}</h2></div><span className="teacher-pill">{teacher==='Vikram'?'👨‍🏫':'👩‍🏫'} {teacher}</span></div><label>Child profile</label><input value={active.name} maxLength={60} onChange={e=>setProfiles(p=>p.map(x=>x.id===activeProfileId?{...x,name:e.target.value}:x))}/><label>Chapter / Topic</label><select value={chapter} onChange={e=>{stop();setChapter(e.target.value);setTeaching(false)}}>{subject.chapters.map(c=><option key={c}>{c}</option>)}</select><div className={`status ${approved[key]?'ok':''}`}>{approved[key]?'✓ Parent approved':'● Needs parent verification'}</div><div className="pages"><div className="pages-head"><div><small>STEP 2 · SOURCE PAGES</small><h3>Chapter page preview</h3></div><span>{pages.length} pages found</span></div><div className="page-grid">{pages.map(p=><div className="page" key={p}><div className="page-number">{p}</div><div className="paper"><i>GURUKULAM</i><strong>{chapter}</strong><span>Page {p}</span><div className="lines"/></div></div>)}</div></div><div className="actions"><button className="secondary" onClick={()=>setMessage('Chapter upload queued for curriculum ingestion.')}>↥ Upload chapter</button><button className="primary" onClick={()=>{setApproved(a=>({...a,[key]:true}));setMessage(`Parent approval received for ${active.name}'s ${chapter}.`)}}>✓ Approve pages</button></div></section></section><section className="next panel"><div><small>LIVE TEACHER LOOP</small><h3>{teaching?`${teacher} is teaching ${active.name}`:'Ready for the Tutor Engine'}</h3><p>{message||'The verified chapter becomes the trusted source for teaching.'}</p>{checks>0&&<div className="progress-line">Mastery checks: {correct}/{checks} correct</div>}</div><div className="actions">{teaching&&<button className="secondary" onClick={listen} disabled={voiceState==='listening'}>{voiceState==='listening'?'🎙 Listening…':'🎙 Speak answer'}</button>}{teaching&&<button className="secondary" onClick={replay}>↻ Replay</button>}{teaching&&<button className="secondary" onClick={stop}>■ Stop</button>}<button className="primary" disabled={!approved[key]} onClick={startTeaching}>▶ {teaching?'Restart lesson':'Start teaching →'}</button></div></section><section className="panel progress-board"><div><small>LEARNING SNAPSHOT</small><h3>{active.name}'s progress</h3><p>{checks?`${correct} correct answers across ${checks} mastery checks.`:'No mastery checks yet.'}</p></div><div className="progress-stats"><strong>{checks?Math.round(correct/checks*100):0}%</strong><span>mastery</span></div></section></main><footer>Gurukulam AI · Parent-controlled learning environment</footer></div>}createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
+import React, { useEffect, useMemo, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import './styles.css';
+import './login-tight.css';
+import './parent-dashboard.css';
+import { credentialToSession, isSessionValid, type AuthSession } from './auth/googleAuth';
+import { BrowserVoice } from './voice/browserVoice';
+
+type Subject = { name: string; teacher: 'Vikram' | 'Raji'; icon: string; chapters: string[] };
+const subjects: Subject[] = [
+  { name: 'English', teacher: 'Vikram', icon: '📘', chapters: ['Sounds & Letters', 'Reading', 'Vocabulary', 'Grammar'] },
+  { name: 'Maths', teacher: 'Vikram', icon: '➗', chapters: ['Numbers', 'Addition', 'Subtraction', 'Shapes'] },
+  { name: 'Computer', teacher: 'Vikram', icon: '💻', chapters: ['Computer Basics', 'Parts of a Computer', 'Digital Safety'] },
+  { name: 'EVS', teacher: 'Raji', icon: '🌱', chapters: ['My Family', 'Plants Around Us', 'Animals', 'Our Neighbourhood'] },
+  { name: 'Hindi', teacher: 'Raji', icon: 'अ', chapters: ['वर्णमाला', 'शब्द', 'पठन', 'लेखन'] },
+  { name: 'GK', teacher: 'Raji', icon: '🌍', chapters: ['My World', 'Nature', 'People & Places', 'Fun Facts'] },
+];
+
+type ChildProfile = {
+  id: string;
+  name: string;
+  dob: string;
+  gender: string;
+  grade: string;
+  section: string;
+  school: string;
+  board: string;
+};
+
+type View = 'child' | 'parents';
+type ParentMenu = 'children' | 'timetable' | 'teachers' | 'subjects' | 'tests' | 'teaching' | 'homework';
+type GoogleCredentialResponse = { credential: string };
+type GoogleIdConfiguration = { client_id: string; callback: (r: GoogleCredentialResponse) => void };
+
+declare global {
+  interface Window {
+    google?: { accounts: { id: { initialize: (c: GoogleIdConfiguration) => void; prompt: () => void; disableAutoSelect: () => void } } };
+  }
+}
+
+const GOOGLE_CLIENT_ID = '96891639304-4hi2fjfnleq59oktf3gflu9c4kei1o31.apps.googleusercontent.com';
+const SESSION_KEY = 'gurukulam-auth-session';
+const CHILDREN_KEY = 'children';
+
+function loadJson<T>(storage: Storage, key: string, fallback: T): T {
+  try { return JSON.parse(storage.getItem(key) || 'null') ?? fallback; } catch { return fallback; }
+}
+function prefix(id: string) { return `gurukulam:${encodeURIComponent(id)}`; }
+function loadAccount<T>(id: string, key: string, fallback: T) { return loadJson(localStorage, `${prefix(id)}:${key}`, fallback); }
+function saveAccount<T>(id: string, key: string, value: T) { localStorage.setItem(`${prefix(id)}:${key}`, JSON.stringify(value)); }
+function loadSession(): AuthSession | null {
+  const session = loadJson<AuthSession | null>(sessionStorage, SESSION_KEY, null);
+  if (!isSessionValid(session)) { sessionStorage.removeItem(SESSION_KEY); return null; }
+  return session;
+}
+function createChildId() {
+  const uuid = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase() : `${Date.now()}${Math.random().toString(36).slice(2, 7)}`.toUpperCase();
+  return `CHD-${uuid}`;
+}
+function newChild(): ChildProfile {
+  return { id: createChildId(), name: '', dob: '', gender: '', grade: '', section: '', school: '', board: '' };
+}
+function defaultChild(): ChildProfile {
+  return { ...newChild(), name: 'My Child', grade: 'Grade 1' };
+}
+function normalizeChildren(children: ChildProfile[]): ChildProfile[] {
+  return children.map(child => child.id.startsWith('child-') ? { ...child, id: createChildId() } : child);
+}
+
+function Login({ sessionMessage, setSession }: { sessionMessage: string; setSession: (s: AuthSession) => void }) {
+  const [message, setMessage] = useState(sessionMessage);
+  useEffect(() => {
+    const init = () => window.google?.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: response => {
+        const session = credentialToSession(response.credential, GOOGLE_CLIENT_ID);
+        if (session) { setSession(session); setMessage('Google authentication successful. Welcome to Gurukulam AI.'); }
+        else setMessage('Google authentication could not be verified.');
+      },
+    });
+    if (window.google) init();
+    else {
+      const timer = window.setInterval(() => { if (window.google) { window.clearInterval(timer); init(); } }, 100);
+      return () => window.clearInterval(timer);
+    }
+  }, [setSession]);
+
+  return <div className="login-screen" role="main">
+    <header className="login-header">
+      <div className="login-brand"><span className="login-logo">G</span><span><strong>Gurukulam AI</strong><small>Learning made joyful</small></span></div>
+      <span className="login-parent-badge">🔒 Parent-controlled</span>
+    </header>
+    <div className="login-content">
+      <section className="login-hero">
+        <div className="login-copy"><span className="login-eyebrow">A HAPPY PLACE TO LEARN</span><h1>Every lesson can become an adventure.</h1><p>Welcome to a warm, playful learning world where your child can learn, explore and grow with a personal AI teacher.</p><div className="login-trust"><span>🌱 Safe</span><span>🧠 Personalised</span><span>✨ Joyful</span></div></div>
+        <div className="login-art-card"><img src="./assets/gurukulam-two-girls-3d.png" alt="Two South Indian girls learning together"/><div className="login-spark spark-one">✦</div><div className="login-spark spark-two">✦</div></div>
+      </section>
+      <section className="login-card"><div className="login-card-icon">🪔</div><span className="login-card-eyebrow">PARENT SIGN-IN</span><h2>Let’s start the adventure!</h2><p>Sign in securely to set up and guide your child’s learning journey.</p><button className="login-google-button" aria-label="Continue with Google" onClick={() => window.google?.accounts.id.prompt()}><span className="google-g">G</span><span>Continue with Google</span><span className="google-arrow">→</span></button><small className="login-privacy">Your account keeps your child’s learning space private and parent-controlled.</small>{message && <div className="login-message-overlay" role="status">{message}</div>}</section>
+    </div>
+    <footer className="login-footer">Gurukulam AI · Learn with curiosity, grow with confidence</footer>
+  </div>;
+}
+
+function ChildDashboard({ child, onParentsAccess }: { child: ChildProfile; onParentsAccess: () => void }) {
+  return <div className="app dashboard-app">
+    <header><div><span className="logo">G</span><div className="brand"><strong>Gurukulam AI</strong><small>Personal AI Teacher</small></div></div><button className="parent-access" onClick={onParentsAccess}>👨‍👩‍👧 Parents Access</button></header>
+    <main>
+      <section className="child-welcome panel"><div><small>MY LEARNING SPACE</small><h1>Hello, {child.name || 'Student'}! 👋</h1><p>Welcome to your Gurukulam AI learning journey.</p></div><div className="child-id-badge">Child ID · {child.id}</div></section>
+      <section className="panel child-subjects"><div className="section-heading"><div><small>LEARN TODAY</small><h2>Choose a subject</h2></div><span>{child.grade || 'Grade not set'}{child.section ? ` · ${child.section}` : ''}</span></div><div className="subject-card-grid">{subjects.map(subject => <article className="subject-card" key={subject.name}><span className="subject-icon">{subject.icon}</span><div><h3>{subject.name}</h3><p>AI Teacher {subject.teacher}</p></div><span>→</span></article>)}</div></section>
+    </main>
+    <footer>Gurukulam AI · Child learning environment</footer>
+  </div>;
+}
+
+function ChildDetails({ profiles, activeId, setProfiles, setActiveId }: { profiles: ChildProfile[]; activeId: string; setProfiles: React.Dispatch<React.SetStateAction<ChildProfile[]>>; setActiveId: (id: string) => void }) {
+  const active = profiles.find(child => child.id === activeId) || profiles[0];
+  const [editing, setEditing] = useState<ChildProfile | null>(null);
+  const [viewing, setViewing] = useState<ChildProfile | null>(null);
+  const [error, setError] = useState('');
+
+  const save = () => {
+    if (!editing) return;
+    if (!editing.name.trim() || !editing.dob || !editing.gender || !editing.grade.trim() || !editing.section.trim() || !editing.school.trim() || !editing.board) {
+      setError('Please complete all Child Details fields.'); return;
+    }
+    setProfiles(current => current.some(child => child.id === editing.id) ? current.map(child => child.id === editing.id ? editing : child) : [...current, editing]);
+    setActiveId(editing.id); setEditing(null); setError('');
+  };
+  const remove = (id: string) => {
+    const child = profiles.find(item => item.id === id);
+    if (!child || !window.confirm(`Delete ${child.name || 'this child'}? This removes the child from this parent account.`)) return;
+    setProfiles(current => current.filter(item => item.id !== id));
+    if (activeId === id) { const next = profiles.find(item => item.id !== id); if (next) setActiveId(next.id); }
+  };
+
+  return <section className="parent-section">
+    <div className="section-heading"><div><small>MENU 1</small><h1>👧 Child Details</h1><p>Add, view, modify or delete children linked to this parent account.</p></div><button className="primary" onClick={() => setEditing(newChild())}>＋ Add Child</button></div>
+    <div className="child-list">{profiles.map(child => <article className={`child-row ${active?.id === child.id ? 'active' : ''}`} key={child.id}>
+      <div className="child-main"><span className="child-avatar">👧</span><div><h3>{child.name || 'Unnamed child'}</h3><p>{child.grade || 'Grade not set'}{child.section ? ` · Section ${child.section}` : ''}</p><small>Child ID: {child.id}</small></div></div>
+      <div className="row-actions"><button onClick={() => { setViewing(child); setActiveId(child.id); }}>View</button><button onClick={() => setEditing(child)}>Modify</button><button className="danger" onClick={() => remove(child.id)}>Delete</button></div>
+    </article>)}</div>
+
+    {viewing && <div className="modal-backdrop" onMouseDown={event => { if (event.currentTarget === event.target) setViewing(null); }}><div className="modal-card"><div className="modal-header"><div><small>CHILD PROFILE</small><h2>{viewing.name}</h2></div><button onClick={() => setViewing(null)}>✕</button></div><div className="detail-grid">{[['Child ID', viewing.id], ['Date of Birth', viewing.dob], ['Gender', viewing.gender], ['Class / Grade', viewing.grade], ['Section', viewing.section], ['School Name', viewing.school], ['School Board', viewing.board]].map(([label, value]) => <div className="detail-item" key={label}><small>{label}</small><strong>{value || '—'}</strong></div>)}</div><div className="actions"><button className="secondary" onClick={() => { setEditing(viewing); setViewing(null); }}>Modify</button><button className="primary" onClick={() => setViewing(null)}>Close</button></div></div></div>}
+
+    {editing && <div className="modal-backdrop"><div className="modal-card child-form"><div className="modal-header"><div><small>{editing.id ? 'CHILD DETAILS' : 'NEW CHILD'}</small><h2>{editing.name ? 'Modify Child' : 'Add Child'}</h2></div>{editing && <button onClick={() => { setEditing(null); setError(''); }}>✕</button>}</div><div className="generated-id"><span>Child ID</span><strong>{editing.id}</strong><em>Auto-generated · unique · cannot be edited</em></div><div className="form-grid">
+      <label>Child Name<input value={editing.name} onChange={event => setEditing({ ...editing, name: event.target.value })} maxLength={80}/></label>
+      <label>Date of Birth<input type="date" value={editing.dob} onChange={event => setEditing({ ...editing, dob: event.target.value })}/></label>
+      <label>Gender<select value={editing.gender} onChange={event => setEditing({ ...editing, gender: event.target.value })}><option value="">Select</option><option>Female</option><option>Male</option><option>Other</option></select></label>
+      <label>Class / Grade<input value={editing.grade} onChange={event => setEditing({ ...editing, grade: event.target.value })} maxLength={40}/></label>
+      <label>Section<input value={editing.section} onChange={event => setEditing({ ...editing, section: event.target.value })} maxLength={20}/></label>
+      <label>School Name<input value={editing.school} onChange={event => setEditing({ ...editing, school: event.target.value })} maxLength={120}/></label>
+      <label>School Board<select value={editing.board} onChange={event => setEditing({ ...editing, board: event.target.value })}><option value="">Select</option><option>CBSE</option><option>ICSE</option><option>State Board</option><option>IB</option><option>Cambridge</option><option>Other</option></select></label>
+    </div>{error && <div className="form-error">{error}</div>}<div className="actions"><button className="secondary" onClick={() => { setEditing(null); setError(''); }}>Cancel</button><button className="primary" onClick={save}>Save Child</button></div></div></div>}
+  </section>;
+}
+
+function ParentsDashboard({ profiles, activeId, setProfiles, setActiveId, onBack, onSignOut }: { profiles: ChildProfile[]; activeId: string; setProfiles: React.Dispatch<React.SetStateAction<ChildProfile[]>>; setActiveId: (id: string) => void; onBack: () => void; onSignOut: () => void }) {
+  const [menu, setMenu] = useState<ParentMenu>('children');
+  const menuItems: Array<{ id: ParentMenu; label: string; icon: string; status: string }> = [
+    { id: 'children', label: 'Child Details', icon: '👧', status: 'Defined' },
+    { id: 'timetable', label: 'TimeTable', icon: '📅', status: 'Defined' },
+    { id: 'teachers', label: 'Teacher Details', icon: '👨‍🏫', status: 'Defined' },
+    { id: 'subjects', label: 'Subjects', icon: '📚', status: 'To be discussed' },
+    { id: 'tests', label: 'Test / Exam by School / Gurukulam', icon: '📝', status: 'To be discussed' },
+    { id: 'teaching', label: "Today's Teaching", icon: '📖', status: 'To be discussed' },
+    { id: 'homework', label: "Kid's Homework", icon: '🏠', status: 'To be discussed' },
+  ];
+  const selected = menuItems.find(item => item.id === menu)!;
+  return <div className="parent-app">
+    <header className="parent-topbar"><div><span className="logo">G</span><div className="brand"><strong>Gurukulam AI</strong><small>Parents Dashboard</small></div></div><div className="top-actions"><button className="back-child" onClick={onBack}>← Child Dashboard</button><button className="signin" onClick={onSignOut}>Sign out</button></div></header>
+    <div className="parent-shell"><aside className="parent-sidebar"><div className="sidebar-title"><span>👨‍👩‍👧</span><div><strong>Parents Access</strong><small>Manage your children</small></div></div><nav>{menuItems.map(item => <button key={item.id} className={menu === item.id ? 'selected' : ''} onClick={() => setMenu(item.id)}><span>{item.icon}</span><b>{item.label}</b>{item.status === 'Defined' ? <i>●</i> : <em>•</em>}</button>)}</nav></aside><main className="parent-main"><section className="parent-hero"><div><span className="eyebrow">PARENTS DASHBOARD</span><h1>{selected.icon} {selected.label}</h1><p>Parent-controlled tools for your child's Gurukulam AI learning environment.</p></div><div className="parent-child-switch"><small>ACTIVE CHILD</small><select value={activeId} onChange={event => setActiveId(event.target.value)}>{profiles.map(child => <option key={child.id} value={child.id}>{child.name || 'Unnamed child'}</option>)}</select></div></section>{menu === 'children' ? <ChildDetails profiles={profiles} activeId={activeId} setProfiles={setProfiles} setActiveId={setActiveId}/> : <section className="coming-section panel"><div className="coming-icon">{selected.icon}</div><small>{selected.status.toUpperCase()}</small><h2>{selected.label}</h2><p>This menu is visible in the Parents Dashboard. Detailed functionality will be finalized before implementation.</p></section>}</main></div><footer>Gurukulam AI · Parent-controlled learning environment</footer>
+  </div>;
+}
+
+function App() {
+  const [session, setSession] = useState<AuthSession | null>(() => loadSession());
+  const [view, setView] = useState<View>('child');
+  const [profiles, setProfiles] = useState<ChildProfile[]>([]);
+  const [activeProfileId, setActiveProfileId] = useState('');
+  const [sessionMessage, setSessionMessage] = useState('');
+  const activeProfile = useMemo(() => profiles.find(profile => profile.id === activeProfileId) || profiles[0], [profiles, activeProfileId]);
+
+  useEffect(() => {
+    if (!session) { setProfiles([]); setActiveProfileId(''); setView('child'); return; }
+    const stored = loadAccount<ChildProfile[]>(session.user.id, CHILDREN_KEY, []);
+    const children = stored.length ? normalizeChildren(stored) : [defaultChild()];
+    setProfiles(children);
+    const storedActive = loadAccount<string>(session.user.id, 'active-child', children[0].id);
+    setActiveProfileId(children.some(child => child.id === storedActive) ? storedActive : children[0].id);
+    setView('child');
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    if (!session || !profiles.length || !activeProfileId) return;
+    saveAccount(session.user.id, CHILDREN_KEY, profiles);
+    saveAccount(session.user.id, 'active-child', activeProfileId);
+  }, [session?.user.id, profiles, activeProfileId]);
+
+  useEffect(() => {
+    if (!session) return;
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    const timer = window.setTimeout(() => { sessionStorage.removeItem(SESSION_KEY); setSession(null); }, Math.max(session.expiresAt - Date.now(), 0));
+    return () => window.clearTimeout(timer);
+  }, [session]);
+
+  const signOut = () => { window.google?.accounts.id.disableAutoSelect(); sessionStorage.removeItem(SESSION_KEY); setSession(null); setSessionMessage(''); };
+  if (!session) return <Login sessionMessage={sessionMessage} setSession={setSession}/>;
+  if (view === 'parents') return <ParentsDashboard profiles={profiles} activeId={activeProfileId} setProfiles={setProfiles} setActiveId={setActiveProfileId} onBack={() => setView('child')} onSignOut={signOut}/>;
+  return <ChildDashboard child={activeProfile || defaultChild()} onParentsAccess={() => setView('parents')}/>;
+}
+
+createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
