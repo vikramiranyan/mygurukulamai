@@ -13,7 +13,7 @@
     background-size: 100% 100% !important;
   }
 
-  /* The artwork already contains the Gurukulam branding, story and feature panel. */
+  /* The artwork itself is the complete desktop login composition. */
   .login-header,
   .login-hero,
   .login-footer {
@@ -31,12 +31,12 @@
     display: block !important;
   }
 
-  /* Transparent positioning layer: only the real Google credential control is visible. */
+  /* Only the functional Google credential control is layered over the blank credential area in the artwork. */
   .login-card {
     position: absolute !important;
-    left: 64% !important;
-    top: 39% !important;
-    width: 29% !important;
+    left: 66.45% !important;
+    top: 32.55% !important;
+    width: 28.25% !important;
     max-width: none !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -57,7 +57,7 @@
 
   .login-google-button {
     width: 100% !important;
-    min-height: 64px !important;
+    min-height: clamp(56px, 6.8vh, 72px) !important;
     padding: 0 24px !important;
     border: 1px solid rgba(210, 205, 195, .95) !important;
     border-radius: 16px !important;
@@ -80,9 +80,17 @@
     font-size: clamp(18px, 1.25vw, 23px) !important;
   }
 
+  /* Keep authentication feedback accessible without adding a second visual card to the artwork. */
   .login-message-overlay {
-    margin-top: 10px !important;
-    background: rgba(255,255,255,.94) !important;
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
   }
 }
 
