@@ -54,23 +54,24 @@
     display: none !important;
   }
 
+  /* High-contrast primary action that matches the Gurukulam green brand colour in the artwork. */
   .login-google-button {
     width: 100% !important;
     min-height: clamp(56px, 6.8vh, 72px) !important;
     padding: 0 24px !important;
-    border: 1px solid rgba(221, 176, 111, .34) !important;
+    border: 1px solid rgba(7, 58, 38, .16) !important;
     border-radius: 15px !important;
-    background: rgba(253, 244, 229, .72) !important;
-    color: #173d34 !important;
+    background: #0f5132 !important;
+    color: #ffffff !important;
     font-size: clamp(15px, 1.15vw, 20px) !important;
-    box-shadow: 0 3px 10px rgba(94, 70, 36, .055) !important;
-    backdrop-filter: blur(1px) !important;
+    box-shadow: 0 4px 12px rgba(15, 81, 50, .16) !important;
+    backdrop-filter: none !important;
   }
 
   .login-google-button:hover {
     transform: translateY(-1px) !important;
-    background: rgba(250, 238, 219, .82) !important;
-    box-shadow: 0 5px 14px rgba(94, 70, 36, .08) !important;
+    background: #0b4329 !important;
+    box-shadow: 0 6px 16px rgba(15, 81, 50, .22) !important;
   }
 
   .google-g {
@@ -79,6 +80,7 @@
 
   .google-arrow {
     font-size: clamp(18px, 1.25vw, 23px) !important;
+    color: #ffffff !important;
   }
 
   .login-message-overlay {
