@@ -13,7 +13,6 @@
     background-size: 100% 100% !important;
   }
 
-  /* The artwork itself is the complete desktop login composition. */
   .login-header,
   .login-hero,
   .login-footer {
@@ -31,11 +30,11 @@
     display: block !important;
   }
 
-  /* Functional Google credential control: centered vertically within the blank credential area of the artwork. */
+  /* Functional Google credential control aligned to the artwork's reserved area. */
   .login-card {
     position: absolute !important;
     left: 66.45% !important;
-    top: 31% !important;
+    top: 31.2% !important;
     width: 28.25% !important;
     max-width: none !important;
     margin: 0 !important;
@@ -59,19 +58,19 @@
     width: 100% !important;
     min-height: clamp(56px, 6.8vh, 72px) !important;
     padding: 0 24px !important;
-    border: 1px solid rgba(221, 176, 111, .62) !important;
-    border-radius: 16px !important;
-    /* Match the warm cream/peach credential area in the artwork instead of using a white floating button. */
-    background: rgba(253, 244, 229, .96) !important;
+    border: 1px solid rgba(221, 176, 111, .34) !important;
+    border-radius: 15px !important;
+    background: rgba(253, 244, 229, .72) !important;
     color: #173d34 !important;
     font-size: clamp(15px, 1.15vw, 20px) !important;
-    box-shadow: 0 6px 18px rgba(94, 70, 36, .08) !important;
+    box-shadow: 0 3px 10px rgba(94, 70, 36, .055) !important;
+    backdrop-filter: blur(1px) !important;
   }
 
   .login-google-button:hover {
     transform: translateY(-1px) !important;
-    background: rgba(250, 238, 219, .98) !important;
-    box-shadow: 0 9px 22px rgba(94, 70, 36, .11) !important;
+    background: rgba(250, 238, 219, .82) !important;
+    box-shadow: 0 5px 14px rgba(94, 70, 36, .08) !important;
   }
 
   .google-g {
@@ -82,7 +81,6 @@
     font-size: clamp(18px, 1.25vw, 23px) !important;
   }
 
-  /* Keep authentication feedback accessible without adding a second visual card to the artwork. */
   .login-message-overlay {
     position: absolute !important;
     width: 1px !important;
@@ -96,7 +94,6 @@
   }
 }
 
-/* Keep the dedicated mobile/tablet composition available below the desktop breakpoint. */
 @media (max-width: 900px) {
   .login-header { display: none !important; }
   .login-content { min-height: 100vh !important; }
