@@ -31,11 +31,11 @@
     display: block !important;
   }
 
-  /* Only the functional Google credential control is layered over the blank credential area in the artwork. */
+  /* Functional Google credential control: centered vertically within the blank credential area of the artwork. */
   .login-card {
     position: absolute !important;
     left: 66.45% !important;
-    top: 32.55% !important;
+    top: 31% !important;
     width: 28.25% !important;
     max-width: none !important;
     margin: 0 !important;
