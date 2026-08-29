@@ -18,7 +18,9 @@
     "typescript": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "vitest": "latest"
+    "vitest": "latest",
+    "pdfjs-dist": "latest",
+    "tesseract.js": "latest"
   },
   "devDependencies": {
     "@types/react": "latest",
