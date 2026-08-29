@@ -30,12 +30,12 @@
     display: block !important;
   }
 
-  /* Google credential control positioned inside the reserved area of the current artwork. */
+  /* Google credential control: kept fully inside the artwork's reserved area. */
   .login-card {
     position: absolute !important;
-    left: 67.8% !important;
+    left: 69.2% !important;
     top: 31.2% !important;
-    width: 31.5% !important;
+    width: 28% !important;
     max-width: none !important;
     margin: 0 !important;
     padding: 0 !important;
