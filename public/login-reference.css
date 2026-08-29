@@ -8,10 +8,10 @@
 .login-screen .login-card .google-btn>*{visibility:hidden!important}
 .login-screen .login-card .google-btn:hover{transform:none!important;background:transparent!important;box-shadow:none!important}
 @media(max-width:700px){
-  .login-screen{display:block!important;width:100vw!important;min-height:100svh!important;height:auto!important;background:#ead7b8!important;overflow:auto!important}
-  .login-screen .login-art{display:block!important;position:relative!important;width:100vw!important;height:56.25vw!important;min-height:0!important;padding:0!important;background:var(--gurukulam-reference) 0 0/181.818% auto no-repeat!important;color:transparent!important;overflow:hidden!important}
+  .login-screen{display:block!important;width:100vw!important;min-height:232vw!important;height:auto!important;background:#ead7b8!important;overflow:hidden!important}
+  .login-screen .login-art{display:block!important;position:relative!important;width:100vw!important;height:100vw!important;min-height:0!important;padding:0!important;background:var(--gurukulam-reference) 0 0/174.5% auto no-repeat!important;color:transparent!important;overflow:hidden!important}
   .login-screen .login-art>*{visibility:hidden!important}
-  .login-screen .login-card{position:relative!important;left:auto!important;top:auto!important;width:100vw!important;height:100vw!important;min-height:0!important;padding:0!important;background:var(--gurukulam-reference) 100% 7.8%/228% auto no-repeat!important;pointer-events:none!important}
-  .login-screen .login-card .google-btn{left:10%!important;top:39.5%!important;width:80%!important;height:10%!important;border-radius:16px!important;pointer-events:auto!important}
+  .login-screen .login-card{position:relative!important;left:auto!important;top:auto!important;width:100vw!important;height:132vw!important;min-height:0!important;padding:0!important;background:var(--gurukulam-reference) 100% 60%/228% auto no-repeat!important;pointer-events:none!important}
+  .login-screen .login-card .google-btn{left:10%!important;top:33.5%!important;width:70.5%!important;height:8.2%!important;border-radius:16px!important;pointer-events:auto!important}
 }
 @media(min-width:701px){.login-screen{aspect-ratio:1536/1024!important}}
