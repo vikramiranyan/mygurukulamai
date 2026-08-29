@@ -1,5 +1,5 @@
-/* Update-001: approved landscape master visual — interactive layer only */
-.login-screen{position:relative!important;display:block!important;min-height:66.6667vw!important;width:100%!important;overflow:hidden!important;background:#ead7b8 url('/mygurukulamai/update-001-login.svg') center top/100% auto no-repeat!important}
+/* Update-001: approved landscape master visual — interactive layer only. Use the original high-resolution approved artwork instead of the low-resolution embedded derivative. */
+.login-screen{position:relative!important;display:block!important;min-height:66.6667vw!important;width:100%!important;overflow:hidden!important;background:#ead7b8 url('https://raw.githubusercontent.com/vikramiranyan/My-Gurukulam-AI/main/attached_assets/ChatGPT_Image_May_3%2C_2026%2C_05_01_03_AM_1777764678364.png') center top/100% auto no-repeat!important}
 .login-art{display:none!important}
 .login-card{position:absolute!important;z-index:5!important;top:8.8%!important;right:5.2%!important;width:37.2%!important;height:82%!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;pointer-events:none!important}
 .login-card>*{visibility:hidden!important;display:none!important}
