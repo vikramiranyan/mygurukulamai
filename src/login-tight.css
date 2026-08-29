@@ -30,12 +30,12 @@
     display: block !important;
   }
 
-  /* Functional Google credential control aligned to the artwork's reserved area. */
+  /* Google credential control positioned inside the reserved area of the current artwork. */
   .login-card {
     position: absolute !important;
-    left: 66.45% !important;
+    left: 67.8% !important;
     top: 31.2% !important;
-    width: 28.25% !important;
+    width: 31.5% !important;
     max-width: none !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -44,6 +44,7 @@
     border-radius: 0 !important;
     box-shadow: none !important;
     backdrop-filter: none !important;
+    z-index: 10 !important;
   }
 
   .login-card-icon,
@@ -54,7 +55,7 @@
     display: none !important;
   }
 
-  /* High-contrast primary action that matches the Gurukulam green brand colour in the artwork. */
+  /* Contrasting primary action; the artwork itself remains untouched. */
   .login-google-button {
     width: 100% !important;
     min-height: clamp(56px, 6.8vh, 72px) !important;
