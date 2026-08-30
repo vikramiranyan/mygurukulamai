@@ -12,6 +12,7 @@ export class DriveSyncController {
   private waitingForToken: Promise<string> | null = null;
   private resolveToken: ((token: string) => void) | null = null;
   private rejectToken: ((error: unknown) => void) | null = null;
+  private configurationVersion = 0;
 
   configure(
     clientId: string,
@@ -21,6 +22,8 @@ export class DriveSyncController {
     // A single controller instance is reused by the SPA. Never carry a Drive
     // token or pending operation from one signed-in parent to another.
     this.rejectToken?.(new Error('Google Drive session changed'));
+    this.configurationVersion += 1;
+    const version = this.configurationVersion;
     this.token = '';
     this.waitingForToken = null;
     this.resolveToken = null;
@@ -29,6 +32,7 @@ export class DriveSyncController {
     this.client = createDriveTokenClient(
       clientId,
       (token) => {
+        if (version !== this.configurationVersion) return;
         this.token = token;
         this.resolveToken?.(token);
         this.resolveToken = null;
@@ -37,6 +41,7 @@ export class DriveSyncController {
         onToken(token);
       },
       (error) => {
+        if (version !== this.configurationVersion) return;
         this.resolveToken = null;
         this.rejectToken?.(error);
         this.rejectToken = null;
@@ -109,6 +114,7 @@ export class DriveSyncController {
   /** Clear transient OAuth state when the parent signs out. */
   reset(): void {
     this.rejectToken?.(new Error('Google Drive session ended'));
+    this.configurationVersion += 1;
     this.token = '';
     this.client = null;
     this.waitingForToken = null;
