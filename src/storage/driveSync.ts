@@ -1,6 +1,8 @@
+import { updateDriveAccessWithGoogleCredential } from '../api/authApi';
+import { clearLatestGoogleCredential, getLatestGoogleCredential } from '../auth/googleAuth';
 import { createDriveTokenClient, requestDriveAccess, type DriveTokenClient } from './googleDriveAuth';
 import { loadChildrenFromDrive, removeChildFromDrive, saveChildToDrive, type DriveChildRecord } from './driveChildStore';
-import { probeDriveAccess } from './googleDrive';
+import { DriveApiError, probeDriveAccess } from './googleDrive';
 
 const SESSION_KEY = 'gurukulam-auth-session';
 
@@ -9,6 +11,17 @@ function readJson<T>(key: string, fallback: T): T {
     return JSON.parse(sessionStorage.getItem(key) || 'null') ?? fallback;
   } catch {
     return fallback;
+  }
+}
+
+async function syncDriveRegistry(status: boolean): Promise<void> {
+  const credential = getLatestGoogleCredential();
+  if (!credential) return;
+  try {
+    await updateDriveAccessWithGoogleCredential(credential, status);
+    if (!status) clearLatestGoogleCredential();
+  } catch {
+    // Registry persistence is auxiliary and must never block Drive access.
   }
 }
 
@@ -23,9 +36,6 @@ function installNavigationDriveCheck(controller: DriveSyncController): void {
     if (!button) return;
     const label = button.textContent?.replace(/^[^A-Za-z←]+/, '').trim() || '';
     if (label.includes('Parents Access') || label.includes('Child Dashboard')) {
-      // Do not block navigation. Re-check/re-establish Drive immediately in the
-      // background. If an existing grant is still valid this is a silent probe;
-      // if the token is stale/revoked, GIS is asked to restore the connection.
       void controller.ensureConnection();
     }
   }, true);
@@ -68,11 +78,13 @@ export class DriveSyncController {
             this.resolveToken = null;
             this.rejectToken = null;
             this.waitingForToken = null;
+            await syncDriveRegistry(true);
             await this.migrateLocalChildren(onError);
             if (version === this.configurationVersion) onToken(token);
           })
           .catch((error) => {
             if (version !== this.configurationVersion) return;
+            this.token = '';
             this.resolveToken = null;
             this.rejectToken?.(error);
             this.rejectToken = null;
@@ -82,10 +94,12 @@ export class DriveSyncController {
       },
       (error) => {
         if (version !== this.configurationVersion) return;
+        this.token = '';
         this.resolveToken = null;
         this.rejectToken?.(error);
         this.rejectToken = null;
         this.waitingForToken = null;
+        void syncDriveRegistry(false);
         onError(error);
       },
     );
@@ -118,8 +132,13 @@ export class DriveSyncController {
       try {
         await probeDriveAccess(this.token);
         return this.token;
-      } catch {
-        this.token = '';
+      } catch (error) {
+        if (error instanceof DriveApiError && (error.status === 401 || error.status === 403)) {
+          this.token = '';
+          void syncDriveRegistry(false);
+        } else {
+          throw error;
+        }
       }
     }
 
@@ -150,7 +169,6 @@ export class DriveSyncController {
     const userId = session.user?.id;
     if (!userId || !this.token) return;
 
-    const migrationKey = `gurukulam-drive-local-migration-done:${userId}`;
     const localKey = `gurukulam:${encodeURIComponent(userId)}:children`;
     let localChildren: DriveChildRecord[] = [];
     try { localChildren = JSON.parse(localStorage.getItem(localKey) || '[]'); } catch { localChildren = []; }
@@ -163,7 +181,7 @@ export class DriveSyncController {
       }
       localStorage.removeItem(localKey);
       localStorage.removeItem(`gurukulam:${encodeURIComponent(userId)}:active-child`);
-      sessionStorage.setItem(migrationKey, '1');
+      sessionStorage.setItem(`gurukulam-drive-local-migration-done:${userId}`, '1');
     } catch (error) {
       onError(error);
     }
