@@ -148,14 +148,89 @@ function hideInternalDriveUi() {
   document.head.appendChild(style);
 }
 
+function installDashboardBrandingAndNavigation() {
+  if (typeof document === 'undefined') return;
+
+  const style = document.createElement('style');
+  style.dataset.gurukulamDashboardUi = 'true';
+  style.textContent = `
+    .gurukulam-brand-icon{width:52px!important;height:52px!important;display:block!important;object-fit:contain!important;flex:0 0 52px!important}
+    .dashboard-app header>div:first-child,.parent-topbar>div:first-child{display:flex!important;align-items:center!important;gap:12px!important}
+    .dashboard-app .logo,.parent-topbar .logo{display:none!important}
+    .dashboard-signout{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid #d8cdb8!important;background:#fff!important;color:#0b4f3f!important;border-radius:14px!important;padding:12px 20px!important;font:inherit!important;font-weight:800!important;cursor:pointer!important;box-shadow:none!important}
+    .dashboard-signout:hover{background:#f8f1e4!important}
+    .parent-topbar .top-actions{display:flex!important;align-items:center!important;gap:12px!important}
+    .parent-topbar .back-child,.parent-topbar .signin{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-height:46px!important;border-radius:14px!important;padding:10px 18px!important;font:inherit!important;font-weight:800!important;cursor:pointer!important}
+    .parent-topbar .back-child{background:#f7eedc!important;color:#0b4f3f!important;border:1px solid #e5d7bd!important}
+    .parent-topbar .signin{background:#fff!important;color:#0b4f3f!important;border:1px solid #d8cdb8!important}
+    .parent-topbar .back-child:hover,.parent-topbar .signin:hover{background:#efe4cf!important}
+    .parent-sidebar .sidebar-title strong{font-size:17px!important}
+    .parent-sidebar .sidebar-title{cursor:default!important}
+    .parent-main .parent-hero.gurukulam-child-hero-hidden{display:none!important}
+    .parent-main .child-details-page .section-heading{margin-top:0!important}
+  `;
+  document.head.appendChild(style);
+
+  const replaceLogo = (root: Element) => {
+    root.querySelectorAll<HTMLElement>('.logo').forEach(logo => {
+      if (logo.dataset.gurukulamLogoDone) return;
+      const img = document.createElement('img');
+      img.className = 'gurukulam-brand-icon';
+      img.src = './icons/icon.svg';
+      img.alt = 'Gurukulam AI';
+      logo.replaceWith(img);
+    });
+  };
+
+  const enhance = () => {
+    const dashboard = document.querySelector('.dashboard-app');
+    if (dashboard) {
+      replaceLogo(dashboard);
+      const header = dashboard.querySelector('header');
+      if (header) {
+        const parentButton = header.querySelector<HTMLButtonElement>('.parent-access');
+        if (parentButton) parentButton.textContent = '👨‍👩‍👧 Parent Dashboard';
+        if (!header.querySelector('.dashboard-signout')) {
+          const signout = document.createElement('button');
+          signout.className = 'dashboard-signout';
+          signout.textContent = '⇥ Sign out';
+          signout.setAttribute('aria-label', 'Sign out');
+          signout.addEventListener('click', () => {
+            try { sessionStorage.removeItem('gurukulam-auth-session'); } catch {}
+            window.location.reload();
+          });
+          header.appendChild(signout);
+        }
+      }
+    }
+
+    const parentApp = document.querySelector('.parent-app');
+    if (parentApp) {
+      replaceLogo(parentApp);
+      const title = parentApp.querySelector<HTMLElement>('.sidebar-title strong');
+      if (title) title.textContent = 'Parent Dashboard';
+
+      const hero = parentApp.querySelector<HTMLElement>('.parent-hero');
+      const heroTitle = hero?.querySelector('h1')?.textContent || '';
+      if (hero && /Child Details/.test(heroTitle)) hero.classList.add('gurukulam-child-hero-hidden');
+    }
+  };
+
+  enhance();
+  const observer = new MutationObserver(enhance);
+  observer.observe(document.body, {childList: true, subtree: true});
+}
+
 if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       installParentActionFallbacks();
       hideInternalDriveUi();
+      installDashboardBrandingAndNavigation();
     }, {once: true});
   } else {
     installParentActionFallbacks();
     hideInternalDriveUi();
+    installDashboardBrandingAndNavigation();
   }
 }
