@@ -41,7 +41,7 @@ class ChildCreate(BaseModel):
 class ChildUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     date_of_birth: date | None = None
-    gender: str | None = Field(default=None, max_length=200)
+    gender: str | None = Field(default=None, max_length=50)
     grade: str | None = Field(default=None, max_length=50)
     section: str | None = Field(default=None, max_length=50)
     school_name: str | None = Field(default=None, max_length=255)
