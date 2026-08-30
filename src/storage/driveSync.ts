@@ -12,6 +12,25 @@ function readJson<T>(key: string, fallback: T): T {
   }
 }
 
+function installNavigationDriveCheck(controller: DriveSyncController): void {
+  if (typeof document === 'undefined') return;
+  if (document.documentElement.dataset.gurukulamDriveNavigationCheck === 'true') return;
+  document.documentElement.dataset.gurukulamDriveNavigationCheck = 'true';
+
+  document.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement | null;
+    const button = target?.closest('button');
+    if (!button) return;
+    const label = button.textContent?.replace(/^[^A-Za-z←]+/, '').trim() || '';
+    if (label.includes('Parents Access') || label.includes('Child Dashboard')) {
+      // Do not block navigation. Re-check/re-establish Drive immediately in the
+      // background. If an existing grant is still valid this is a silent probe;
+      // if the token is stale/revoked, GIS is asked to restore the connection.
+      void controller.ensureConnection();
+    }
+  }, true);
+}
+
 export class DriveSyncController {
   private client: DriveTokenClient | null = null;
   private token = '';
@@ -19,6 +38,10 @@ export class DriveSyncController {
   private resolveToken: ((token: string) => void) | null = null;
   private rejectToken: ((error: unknown) => void) | null = null;
   private configurationVersion = 0;
+
+  constructor() {
+    installNavigationDriveCheck(this);
+  }
 
   configure(
     clientId: string,
@@ -70,20 +93,12 @@ export class DriveSyncController {
     return Boolean(this.client);
   }
 
-  /**
-   * Used after Google Login on every session. An empty prompt reuses the
-   * user's existing Drive grant and only asks for consent when needed.
-   */
   authorize(): void {
     if (!this.client) throw new Error('Google Drive authorization is not ready');
     requestDriveAccess(this.client, '');
   }
 
-  /**
-   * Re-check Drive before entering a protected Gurukulam area.
-   * If the current token is missing/expired/revoked, GIS is invoked again
-   * internally with prompt:'' so an existing grant can be re-established.
-   */
+  /** Re-check Drive before protected navigation and re-establish it when needed. */
   async ensureConnection(): Promise<boolean> {
     try {
       await this.requireToken();
@@ -99,8 +114,6 @@ export class DriveSyncController {
   private async requireToken(): Promise<string> {
     if (!this.client) throw new Error('Google Drive authorization is not ready');
 
-    // Do not trust an old browser token just because it exists. Probe it first.
-    // This catches expiry/revocation and forces a fresh token when necessary.
     if (this.token) {
       try {
         await probeDriveAccess(this.token);
@@ -132,7 +145,6 @@ export class DriveSyncController {
     return removeChildFromDrive(await this.requireToken(), childId);
   }
 
-  /** One-time migration of the existing browser copy, then remove the local child copy. */
   private async migrateLocalChildren(onError: (error: unknown) => void): Promise<void> {
     const session = readJson<{ user?: { id?: string } }>(SESSION_KEY, {});
     const userId = session.user?.id;
