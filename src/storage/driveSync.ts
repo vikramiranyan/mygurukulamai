@@ -71,21 +71,44 @@ export class DriveSyncController {
   }
 
   /**
-   * Used after Google Login on every session. `prompt: ''` reuses the user's
-   * existing Google Drive grant without asking for permission again. Google
-   * will only require consent when the grant does not already exist.
+   * Used after Google Login on every session. An empty prompt reuses the
+   * user's existing Drive grant and only asks for consent when needed.
    */
   authorize(): void {
     if (!this.client) throw new Error('Google Drive authorization is not ready');
     requestDriveAccess(this.client, '');
   }
 
+  /**
+   * Re-check Drive before entering a protected Gurukulam area.
+   * If the current token is missing/expired/revoked, GIS is invoked again
+   * internally with prompt:'' so an existing grant can be re-established.
+   */
+  async ensureConnection(): Promise<boolean> {
+    try {
+      await this.requireToken();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   get authorized(): boolean { return Boolean(this.token); }
   get configured(): boolean { return Boolean(this.client); }
 
   private async requireToken(): Promise<string> {
-    if (this.token) return this.token;
     if (!this.client) throw new Error('Google Drive authorization is not ready');
+
+    // Do not trust an old browser token just because it exists. Probe it first.
+    // This catches expiry/revocation and forces a fresh token when necessary.
+    if (this.token) {
+      try {
+        await probeDriveAccess(this.token);
+        return this.token;
+      } catch {
+        this.token = '';
+      }
+    }
 
     if (!this.waitingForToken) {
       this.waitingForToken = new Promise<string>((resolve, reject) => {
@@ -126,7 +149,6 @@ export class DriveSyncController {
       if (!remote.length && meaningful.length) {
         for (const child of meaningful) await saveChildToDrive(this.token, child);
       }
-      // Local child storage is no longer a data source. Remove it once Drive is usable.
       localStorage.removeItem(localKey);
       localStorage.removeItem(`gurukulam:${encodeURIComponent(userId)}:active-child`);
       sessionStorage.setItem(migrationKey, '1');
