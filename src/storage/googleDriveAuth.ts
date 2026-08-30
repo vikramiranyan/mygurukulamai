@@ -42,5 +42,8 @@ export function createDriveTokenClient(
 }
 
 export function requestDriveAccess(client: DriveTokenClient, prompt: 'consent' | '' = 'consent') {
-  client.requestAccessToken(prompt ? { prompt } : {});
+  // IMPORTANT: an empty prompt must be sent explicitly. Omitting the property
+  // makes GIS use its default `select_account` behavior, which caused the
+  // account chooser to appear again for returning users.
+  client.requestAccessToken({ prompt });
 }
