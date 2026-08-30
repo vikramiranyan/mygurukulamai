@@ -12,6 +12,7 @@ from .schemas import (
     ChildUpdate,
     DriveAccessStatus,
     DriveAccessUpdate,
+    GoogleDriveAccessUpdate,
     GoogleSignInRequest,
     ParentSession,
 )
@@ -49,8 +50,6 @@ def google_sign_in(payload: GoogleSignInRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(parent)
 
-    # A newly seen Google account starts as Drive=No until the actual Drive probe succeeds.
-    # Existing users are left unchanged here; the real Drive probe is authoritative.
     try:
         if get_drive_access(parent.email) is None:
             _sync_registry(parent.email, False)
@@ -64,6 +63,31 @@ def google_sign_in(payload: GoogleSignInRequest, db: Session = Depends(get_db)):
     except Exception:
         drive_access = None
     return ParentSession(access_token=access_token, expires_at=expires_at, drive_access=drive_access)
+
+
+@router.post("/auth/drive-access/google", response_model=DriveAccessStatus)
+def update_drive_access_with_google_credential(payload: GoogleDriveAccessUpdate):
+    """Update the registry using a freshly issued Google ID token.
+
+    This endpoint deliberately accepts only a Google ID token, verifies it against
+    the configured OAuth client, and derives the registry identity from Google's
+    verified email. The raw credential is never stored.
+    """
+    claims = verify_google_credential(payload.credential)
+    settings = get_settings()
+    if not settings.github_token or not settings.drive_registry_hmac_secret:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Drive access registry is not configured",
+        )
+    try:
+        record = upsert_drive_access(claims["email"], payload.drive_access)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Drive access registry could not be updated",
+        ) from exc
+    return DriveAccessStatus(drive_access=record.drive_access, registry_configured=True)
 
 
 @router.get("/auth/drive-access", response_model=DriveAccessStatus)
