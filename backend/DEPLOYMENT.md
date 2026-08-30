@@ -12,10 +12,19 @@
 - `GITHUB_DRIVE_REGISTRY_PATH` — registry path (default: `data/drive-access-users.json`)
 - `GITHUB_BRANCH` — registry branch (default: `main`)
 - `DRIVE_REGISTRY_HMAC_SECRET` — long random server-only secret used to derive a non-reversible user key from the verified Google email
+- `DRIVE_REGISTRY_ENCRYPTION_KEY` — **separate** base64url-encoded 32-byte server-only AES-256-GCM key. Never commit it, put it in GitHub, or expose it through `VITE_*` variables.
 
-The GitHub token and HMAC secret are **backend-only**. Never expose either through `VITE_*` variables or browser code.
+The GitHub token, HMAC secret, and encryption key are **backend-only**. Never expose any of them to the browser.
 
-The repository is currently public. Therefore the registry intentionally does **not** store raw Gmail addresses. It stores a stable HMAC user key plus `drive_access: true/false`. The backend can match the verified Google email to the same key, while the public repository cannot reveal the email address.
+## Registry confidentiality
+
+The repository is public. The complete contents of `data/drive-access-users.json` are encrypted at rest using **AES-256-GCM**. The file intentionally contains only an encryption envelope (`version`, `algorithm`, `nonce`, and `ciphertext`). The plaintext registry and the AES key never live in the public repository.
+
+The backend decrypts the registry only in memory after retrieving it from GitHub. Every write generates a fresh random 96-bit nonce and authenticated ciphertext. Authentication failures or tampering cause the registry read to fail closed.
+
+The registry also stores a stable HMAC-SHA256 identifier instead of raw Gmail addresses, providing a second layer of privacy even after decryption.
+
+**Important:** encryption protects the current public file and future commits, but it cannot erase information that may have been exposed in an older plaintext commit. If sensitive plaintext has ever been committed, rotate/rewrite the Git history and rotate any related secrets. The registry file in the current repository history contained no user records before encryption was enabled.
 
 ## Drive access behavior
 
