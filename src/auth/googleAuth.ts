@@ -8,6 +8,8 @@ export type AuthUser = {
 export type AuthSession = {
   user: AuthUser;
   expiresAt: number;
+  // Server JWT used only for backend-owned registry operations.
+  backendAccessToken?: string;
 };
 
 export type GoogleCredentialClaims = {
