@@ -32,4 +32,5 @@ jobs:
           GOOGLE_CLIENT_ID: ci-test-client
           JWT_SECRET: ci-test-secret-for-validation-only
           FRONTEND_ORIGINS: http://localhost:5173
+          DRIVE_REGISTRY_HMAC_SECRET: ci-registry-secret
         run: PYTHONPATH=. pytest -q
