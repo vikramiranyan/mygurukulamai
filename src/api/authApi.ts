@@ -39,6 +39,16 @@ export function backendGoogleSignIn(credential: string): Promise<BackendSession>
   });
 }
 
+export function updateDriveAccessWithGoogleCredential(
+  credential: string,
+  driveAccess: boolean,
+): Promise<DriveAccessStatus> {
+  return request<DriveAccessStatus>('/auth/drive-access/google', {
+    method: 'POST',
+    body: JSON.stringify({ credential, drive_access: driveAccess }),
+  });
+}
+
 export function getDriveAccessStatus(accessToken: string): Promise<DriveAccessStatus> {
   return request<DriveAccessStatus>('/auth/drive-access', {
     headers: { Authorization: `Bearer ${accessToken}` },
