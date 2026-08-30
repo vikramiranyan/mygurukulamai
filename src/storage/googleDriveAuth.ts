@@ -4,20 +4,34 @@ export type DriveTokenClient = {
   requestAccessToken: (overrideConfig?: { prompt?: string }) => void;
 };
 
+type DriveTokenResponse = {
+  access_token?: string;
+  error?: string | { error?: string; error_description?: string };
+  error_description?: string;
+};
+
 export function createDriveTokenClient(
   clientId: string,
   callback: (accessToken: string) => void,
-  onError?: (error: unknown) => void
+  onError?: (error: unknown) => void,
 ): DriveTokenClient | null {
   const google = (window as any).google;
   if (!google?.accounts?.oauth2?.initTokenClient) return null;
+
   return google.accounts.oauth2.initTokenClient({
     client_id: clientId,
     scope: GOOGLE_DRIVE_SCOPE,
-    callback: (response: { access_token?: string; error?: unknown }) => {
-      if (response.access_token) callback(response.access_token);
-      else onError?.(response.error || new Error('Google Drive authorization failed'));
-    }
+    callback: (response: DriveTokenResponse) => {
+      if (response.access_token) {
+        callback(response.access_token);
+        return;
+      }
+
+      const detail = typeof response.error === 'string'
+        ? response.error
+        : response.error?.error_description || response.error?.error || response.error_description;
+      onError?.(new Error(detail || 'Google Drive authorization failed'));
+    },
   });
 }
 
