@@ -19,7 +19,8 @@ export class DriveSyncController {
     onError: (error: unknown) => void,
   ): boolean {
     // A single controller instance is reused by the SPA. Never carry a Drive
-    // token from one signed-in parent to another.
+    // token or pending operation from one signed-in parent to another.
+    this.rejectToken?.(new Error('Google Drive session changed'));
     this.token = '';
     this.waitingForToken = null;
     this.resolveToken = null;
@@ -107,6 +108,7 @@ export class DriveSyncController {
 
   /** Clear transient OAuth state when the parent signs out. */
   reset(): void {
+    this.rejectToken?.(new Error('Google Drive session ended'));
     this.token = '';
     this.client = null;
     this.waitingForToken = null;
