@@ -1,20 +1,10 @@
 import { createDriveTokenClient, requestDriveAccess, type DriveTokenClient } from './googleDriveAuth';
 import { loadChildrenFromDrive, removeChildFromDrive, saveChildToDrive, type DriveChildRecord } from './driveChildStore';
 
-const SESSION_KEY = 'gurukulam-auth-session';
-
-function readJson<T>(key: string, fallback: T): T {
-  try {
-    return JSON.parse(sessionStorage.getItem(key) || 'null') ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 /**
  * Google Identity Services token requests must be initiated from a real user
  * action when a consent/popup flow is required. Do not start Drive OAuth from
- * a delayed setTimeout after Google Sign-In; browsers can block that popup.
+ * a delayed timer after Google Sign-In; browsers can block that popup.
  */
 export class DriveSyncController {
   private client: DriveTokenClient | null = null;
@@ -50,10 +40,7 @@ export class DriveSyncController {
     return Boolean(this.client);
   }
 
-  /**
-   * Start Drive authorization. This method is intentionally only called from
-   * an explicit UI action such as the Connect Google Drive button.
-   */
+  /** Start Drive authorization from an explicit user action. */
   authorize(): void {
     if (!this.client) {
       throw new Error('Google Drive authorization is not ready');
@@ -70,9 +57,8 @@ export class DriveSyncController {
   }
 
   /**
-   * Operations that happen immediately after the user grants Drive access may
-   * race the OAuth callback. Queue them behind the callback instead of failing
-   * with a false "access required" error.
+   * Save/load/delete can race the OAuth callback immediately after consent.
+   * Queue the operation behind that callback instead of failing prematurely.
    */
   private async requireToken(): Promise<string> {
     if (this.token) return this.token;
