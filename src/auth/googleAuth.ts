@@ -8,7 +8,6 @@ export type AuthUser = {
 export type AuthSession = {
   user: AuthUser;
   expiresAt: number;
-  // Server JWT used only for backend-owned registry operations.
   backendAccessToken?: string;
 };
 
@@ -21,6 +20,8 @@ export type GoogleCredentialClaims = {
   aud?: string;
   iss?: string;
 };
+
+let latestGoogleCredential = '';
 
 export interface GoogleAuthAdapter {
   signIn(): Promise<AuthSession>;
@@ -47,6 +48,15 @@ export function decodeGoogleCredential(token: string): GoogleCredentialClaims | 
   }
 }
 
+/** Returns the most recently issued Google ID token for in-memory registry sync only. */
+export function getLatestGoogleCredential(): string {
+  return latestGoogleCredential;
+}
+
+export function clearLatestGoogleCredential(): void {
+  latestGoogleCredential = '';
+}
+
 export function credentialToSession(
   token: string,
   expectedClientId: string,
@@ -59,6 +69,7 @@ export function credentialToSession(
   const expiresAt = claims.exp * 1000;
   if (expiresAt <= now) return null;
 
+  latestGoogleCredential = token;
   return {
     user: {
       id: claims.sub,
