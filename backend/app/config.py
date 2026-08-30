@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     jwt_secret: str
     frontend_origins: str = "http://localhost:5173"
     jwt_expire_minutes: int = 60
+    auto_create_schema: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
