@@ -1,5 +1,5 @@
 import { updateDriveAccessWithGoogleCredential } from '../api/authApi';
-import { clearLatestGoogleCredential, getLatestGoogleCredential } from '../auth/googleAuth';
+import { getLatestGoogleCredential } from '../auth/googleAuth';
 import { createDriveTokenClient, requestDriveAccess, type DriveTokenClient } from './googleDriveAuth';
 import { loadChildrenFromDrive, removeChildFromDrive, saveChildToDrive, type DriveChildRecord } from './driveChildStore';
 import { DriveApiError, probeDriveAccess } from './googleDrive';
@@ -19,7 +19,6 @@ async function syncDriveRegistry(status: boolean): Promise<void> {
   if (!credential) return;
   try {
     await updateDriveAccessWithGoogleCredential(credential, status);
-    if (!status) clearLatestGoogleCredential();
   } catch {
     // Registry persistence is auxiliary and must never block Drive access.
   }
