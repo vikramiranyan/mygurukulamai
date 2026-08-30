@@ -18,6 +18,13 @@ export class DriveSyncController {
     onToken: (token: string) => void,
     onError: (error: unknown) => void,
   ): boolean {
+    // A single controller instance is reused by the SPA. Never carry a Drive
+    // token from one signed-in parent to another.
+    this.token = '';
+    this.waitingForToken = null;
+    this.resolveToken = null;
+    this.rejectToken = null;
+
     this.client = createDriveTokenClient(
       clientId,
       (token) => {
