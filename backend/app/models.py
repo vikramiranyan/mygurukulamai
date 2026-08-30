@@ -28,7 +28,7 @@ class Child(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     parent_id: Mapped[int] = mapped_column(ForeignKey("parents.id", ondelete="CASCADE"), index=True)
     # Public identifier: generated only by the server and globally unique.
-    child_id: Mapped[str] = mapped_column(String(36), default=lambda: str(uuid4()), unique=True, index=True)
+    child_id: Mapped[str] = mapped_column(String(40), default=lambda: f"CHD-{uuid4().hex[:12].upper()}", unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200))
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     gender: Mapped[str | None] = mapped_column(String(50), nullable=True)
