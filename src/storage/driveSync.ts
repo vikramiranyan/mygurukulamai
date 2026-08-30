@@ -1,8 +1,6 @@
 import { createDriveTokenClient, requestDriveAccess, type DriveTokenClient } from './googleDriveAuth';
 import { loadChildrenFromDrive, removeChildFromDrive, saveChildToDrive, type DriveChildRecord } from './driveChildStore';
 
-const AUTO_AUTH_ATTEMPT_KEY = 'gurukulam-drive-auto-auth-attempted';
-const MIGRATION_DONE_KEY = 'gurukulam-drive-local-migration-done';
 const SESSION_KEY = 'gurukulam-auth-session';
 
 function readJson<T>(key: string, fallback: T): T {
@@ -38,12 +36,16 @@ export class DriveSyncController {
     }, onError);
     if (!this.client) return false;
 
+    const session = readJson<{ user?: { id?: string } }>(SESSION_KEY, {});
+    const userId = session.user?.id || 'unknown';
+    const autoAuthKey = `gurukulam-drive-auto-auth-attempted:${userId}`;
+
     // Drive authorization is now part of the signed-in parent onboarding flow.
     // Use prompt:'' so an already-approved user can receive a token without a
     // repeated consent screen; Google still shows consent when required.
     hideManualDriveControl();
-    if (sessionStorage.getItem(AUTO_AUTH_ATTEMPT_KEY) !== '1') {
-      sessionStorage.setItem(AUTO_AUTH_ATTEMPT_KEY, '1');
+    if (sessionStorage.getItem(autoAuthKey) !== '1') {
+      sessionStorage.setItem(autoAuthKey, '1');
       window.setTimeout(() => {
         try { if (this.client) requestDriveAccess(this.client, ''); }
         catch (error) { onError(error); }
@@ -75,24 +77,25 @@ export class DriveSyncController {
   }
 
   private async migrateLocalChildren(onError: (error: unknown) => void) {
-    if (sessionStorage.getItem(MIGRATION_DONE_KEY) === '1') return;
     const session = readJson<{ user?: { id?: string } }>(SESSION_KEY, {});
     const userId = session.user?.id;
     if (!userId || !this.token) return;
+    const migrationKey = `gurukulam-drive-local-migration-done:${userId}`;
+    if (sessionStorage.getItem(migrationKey) === '1') return;
 
     const localKey = `gurukulam:${encodeURIComponent(userId)}:children`;
     let localChildren: DriveChildRecord[] = [];
     try { localChildren = JSON.parse(localStorage.getItem(localKey) || '[]'); } catch { localChildren = []; }
     const meaningful = localChildren.filter(child => child?.id && child.name?.trim());
     if (!meaningful.length) {
-      sessionStorage.setItem(MIGRATION_DONE_KEY, '1');
+      sessionStorage.setItem(migrationKey, '1');
       return;
     }
 
     try {
       const remote = await loadChildrenFromDrive(this.token);
       if (remote.length) {
-        sessionStorage.setItem(MIGRATION_DONE_KEY, '1');
+        sessionStorage.setItem(migrationKey, '1');
         return;
       }
       const approved = window.confirm(
@@ -100,7 +103,7 @@ export class DriveSyncController {
       );
       if (!approved) return;
       for (const child of meaningful) await saveChildToDrive(this.token, child);
-      sessionStorage.setItem(MIGRATION_DONE_KEY, '1');
+      sessionStorage.setItem(migrationKey, '1');
     } catch (error) {
       onError(error);
     }
