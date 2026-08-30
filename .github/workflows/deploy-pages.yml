@@ -1,5 +1,6 @@
 name: Deploy Gurukulam AI to GitHub Pages
 
+# Deployment runs on main updates and can also be started manually.
 on:
   push:
     branches: [main]
