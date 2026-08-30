@@ -1,12 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from .config import get_settings
 from .database import Base, engine
 from .routes import router
 
 settings = get_settings()
-app = FastAPI(title="Gurukulam AI API", version="0.1.0")
+app = FastAPI(title="Gurukulam AI API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,8 +17,10 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-# Initial deployment foundation. A migration tool can replace this in the next hardening pass.
-Base.metadata.create_all(bind=engine)
+# Local/dev bootstrap only. Production schema changes must use the versioned
+# SQL migration files under app/migrations rather than startup DDL.
+if settings.auto_create_schema:
+    Base.metadata.create_all(bind=engine)
 
 app.include_router(router, prefix="/api")
 
@@ -25,3 +28,10 @@ app.include_router(router, prefix="/api")
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "gurukulam-api"}
+
+
+@app.get("/ready")
+def readiness() -> dict[str, str]:
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1"))
+    return {"status": "ready", "service": "gurukulam-api"}
