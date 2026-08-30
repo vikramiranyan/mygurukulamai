@@ -26,15 +26,10 @@ function parseLine(line: string, currentDay: string) {
   const end = to24(endHour, endMinute, match[6] || match[3]);
   const subject = normaliseSubject(line.slice(match.index! + match[0].length));
   if (!subject) return null;
-  const type = BREAK_WORDS.test(subject.split(/\s+/)[0]) ? 'break' : 'class';
-  return { day: currentDay, start, end, subject, type } as ParsedTimetablePeriod;
+  const type: 'class' | 'break' = BREAK_WORDS.test(subject.split(/\s+/)[0]) ? 'break' : 'class';
+  return { day: currentDay, start, end, subject, type };
 }
 
-/**
- * Extracts timetable rows from selectable PDF text or OCR text.
- * The browser cannot reliably OCR arbitrary PDFs/images without a heavy WASM dependency;
- * this parser therefore accepts extracted text and performs deterministic timetable parsing.
- */
 export function parseTimetableText(text: string): ParsedTimetablePeriod[] {
   const periods: ParsedTimetablePeriod[] = [];
   let currentDay = 'Monday';
@@ -56,10 +51,12 @@ export function parseTimetableCsv(csv: string): ParsedTimetablePeriod[] {
   const idx = (names: string[]) => names.map(n => header.indexOf(n)).find(i => i >= 0) ?? -1;
   const dayI = idx(['day']); const startI = idx(['start', 'start time']); const endI = idx(['end', 'end time']); const subjectI = idx(['subject']);
   if (dayI < 0 || startI < 0 || endI < 0 || subjectI < 0) return [];
-  return dedupe(rows.slice(1).map(row => {
+  const parsed: ParsedTimetablePeriod[] = rows.slice(1).map(row => {
     const subject = normaliseSubject(row[subjectI] || '');
-    return { day: DAYS.includes(row[dayI]) ? row[dayI] : 'Monday', start: row[startI], end: row[endI], subject, type: BREAK_WORDS.test(subject) ? 'break' : 'class' };
-  }).filter(p => p.subject));
+    const type: 'class' | 'break' = BREAK_WORDS.test(subject) ? 'break' : 'class';
+    return { day: DAYS.includes(row[dayI]) ? row[dayI] : 'Monday', start: row[startI], end: row[endI], subject, type };
+  }).filter(p => p.subject);
+  return dedupe(parsed);
 }
 
 export function extractSubjects(periods: ParsedTimetablePeriod[]) {
