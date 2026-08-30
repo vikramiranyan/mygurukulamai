@@ -127,7 +127,22 @@ function installParentActionFallbacks() {
   observer.observe(document.body, {childList: true, subtree: true});
 }
 
+function hideInternalDriveUi() {
+  if (typeof document === 'undefined') return;
+  const style = document.createElement('style');
+  style.dataset.gurukulamDriveUi = 'true';
+  style.textContent = '.drive-indicator,.drive-indicator + button{display:none!important}';
+  document.head.appendChild(style);
+}
+
 if (typeof document !== 'undefined') {
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installParentActionFallbacks, {once: true});
-  else installParentActionFallbacks();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      installParentActionFallbacks();
+      hideInternalDriveUi();
+    }, {once: true});
+  } else {
+    installParentActionFallbacks();
+    hideInternalDriveUi();
+  }
 }
