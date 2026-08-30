@@ -3,6 +3,13 @@ const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3/files';
 const APP_FOLDER = 'Gurukulam AI';
 const CHILD_FOLDER = 'children';
 
+export class DriveApiError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = 'DriveApiError';
+  }
+}
+
 export type DriveFile = {
   id: string;
   name: string;
@@ -38,7 +45,8 @@ async function driveRequest<T>(token: string, url: string, init: RequestInit = {
       }
     }
 
-    throw new Error(
+    throw new DriveApiError(
+      response.status,
       `Google Drive request failed (${response.status}${response.statusText ? ` ${response.statusText}` : ''})${detail ? `: ${detail}` : ''}`,
     );
   }
@@ -46,10 +54,7 @@ async function driveRequest<T>(token: string, url: string, init: RequestInit = {
   return response.json() as Promise<T>;
 }
 
-/**
- * Authenticated Drive probe. The UI should not report Drive as connected until
- * this succeeds; Google Login and Drive OAuth are separate capabilities.
- */
+/** Authenticated Drive probe. A successful probe is the source of truth for access. */
 export async function probeDriveAccess(token: string): Promise<void> {
   await driveRequest<{ user?: { permissionId?: string } }>(
     token,
@@ -178,6 +183,6 @@ export async function deleteFile(token: string, fileId: string): Promise<void> {
         // Ignore secondary parsing failures.
       }
     }
-    throw new Error(`Google Drive delete failed (${response.status})${detail ? `: ${detail}` : ''}`);
+    throw new DriveApiError( response.status, `Google Drive delete failed (${response.status})${detail ? `: ${detail}` : ''}` );
   }
 }
