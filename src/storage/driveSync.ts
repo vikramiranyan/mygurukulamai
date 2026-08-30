@@ -1,5 +1,5 @@
 import { updateDriveAccessWithGoogleCredential } from '../api/authApi';
-import { getLatestGoogleCredential } from '../auth/googleAuth';
+import { clearLatestGoogleCredential, getLatestGoogleCredential } from '../auth/googleAuth';
 import { createDriveTokenClient, requestDriveAccess, type DriveTokenClient } from './googleDriveAuth';
 import { loadChildrenFromDrive, removeChildFromDrive, saveChildToDrive, type DriveChildRecord } from './driveChildStore';
 import { DriveApiError, probeDriveAccess } from './googleDrive';
@@ -194,5 +194,6 @@ export class DriveSyncController {
     this.waitingForToken = null;
     this.resolveToken = null;
     this.rejectToken = null;
+    clearLatestGoogleCredential();
   }
 }
