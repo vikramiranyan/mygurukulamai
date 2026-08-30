@@ -11,6 +11,13 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60
     auto_create_schema: bool = False
 
+    # Server-side GitHub registry configuration. Never expose these to the frontend.
+    github_token: str = ""
+    github_repository: str = "vikramiranyan/mygurukulamai"
+    github_drive_registry_path: str = "data/drive-access-users.json"
+    github_branch: str = "main"
+    drive_registry_hmac_secret: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
     @property
