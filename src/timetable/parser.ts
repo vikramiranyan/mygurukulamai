@@ -3,6 +3,7 @@ export type ParsedTimetablePeriod = { day: string; start: string; end: string; s
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const BREAK_WORDS = /^(break|lunch|recess|assembly|prayer|interval|free|activity)$/i;
 const TIME_RE = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:-|–|—|to)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i;
+const COLUMN_SUBJECTS = ['Assembly Time','Fruit Break','English','Computer','Hindi','TK','Lunch','Drawing','EVS','Maths','Dear','Skating','Robotics','CACA','Language Lab','P.E.','Dance','Yoga','GK','Music'];
 
 function to24(hour: number, minute: number, meridiem?: string) {
   let h = hour;
@@ -30,6 +31,71 @@ function parseLine(line: string, currentDay: string) {
   return { day: currentDay, start, end, subject, type };
 }
 
+function normaliseBrokenPdfTimes(text: string) {
+  return text.replace(/(\d{1,2}:\d{1,2})\s+(\d)\s+(am|pm)\b/gi, '$1$2 $3');
+}
+
+function splitColumnCell(raw: string): string[] {
+  let value = raw.trim();
+  if (!value) return [];
+  value = value.replace(/\([^)]*\)/g, ' ');
+  value = value.replace(/\([^\n]*$/g, ' ');
+  value = value.replace(/^(?:Course|Notebook|Workbook|Wise time)\b.*$/i, '');
+  value = normaliseSubject(value);
+  if (!value) return [];
+  if (/^assembly time fruit break$/i.test(value)) return ['Assembly Time', 'Fruit Break'];
+  if (/^language$/i.test(value)) return ['Language'];
+  const matches = COLUMN_SUBJECTS.filter(subject => new RegExp(`^${subject.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i').test(value));
+  if (matches.length) return [matches[0]];
+  const sorted = [...COLUMN_SUBJECTS].sort((a, b) => b.length - a.length);
+  const result: string[] = [];
+  let rest = value;
+  while (rest) {
+    const subject = sorted.find(candidate => rest.toLowerCase().startsWith(candidate.toLowerCase()) && (rest.length === candidate.length || /\s/.test(rest[candidate.length])));
+    if (!subject) return [value];
+    result.push(subject);
+    rest = rest.slice(subject.length).trim();
+  }
+  return result;
+}
+
+function parseColumnarPdfText(text: string): ParsedTimetablePeriod[] {
+  const normalised = normaliseBrokenPdfTimes(text);
+  const timeMatches = [...normalised.matchAll(/\b(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*(am|pm)?\b/gi)];
+  const timeRanges = timeMatches.slice(0, 11).map(match => ({ start: match[1], end: match[2], meridiem: match[3] }));
+  if (timeRanges.length < 6) return [];
+
+  const lines = normalised.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const dayAliases: Record<string, string> = { MON: 'Monday', TUES: 'Tuesday', WED: 'Wednesday', THURS: 'Thursday', FRI: 'Friday', SAT: 'Saturday' };
+  const dayIndices = lines.map((line, index) => ({ line: line.toUpperCase(), index })).filter(item => Boolean(dayAliases[item.line]));
+  if (!dayIndices.length) return [];
+
+  const periods: ParsedTimetablePeriod[] = [];
+  for (let d = 0; d < dayIndices.length; d += 1) {
+    const startIndex = dayIndices[d].index + 1;
+    const endIndex = d + 1 < dayIndices.length ? dayIndices[d + 1].index : lines.length;
+    const cells: string[] = [];
+    let pendingLanguage = false;
+    for (const raw of lines.slice(startIndex, endIndex)) {
+      if (/^(Course|Book\)|Notebook\)?|Workbook\)?|Wise time\)?)$/i.test(raw)) continue;
+      if (/^Language$/i.test(raw)) { pendingLanguage = true; continue; }
+      if (pendingLanguage && /^Lab$/i.test(raw)) { cells.push('Language Lab'); pendingLanguage = false; continue; }
+      pendingLanguage = false;
+      cells.push(...splitColumnCell(raw));
+    }
+    if (cells.length !== timeRanges.length) continue;
+    const day = dayAliases[dayIndices[d].line];
+    cells.forEach((subject, index) => {
+      const range = timeRanges[index];
+      const start = to24(Number(range.start.split(':')[0]), Number(range.start.split(':')[1]), range.meridiem);
+      const end = to24(Number(range.end.split(':')[0]), Number(range.end.split(':')[1]), range.meridiem);
+      const type: 'class' | 'break' = BREAK_WORDS.test(subject.split(/\s+/)[0]) ? 'break' : 'class';
+      periods.push({ day, start, end, subject, type });
+    });
+  }
+  return periods;
+}
+
 export function parseTimetableText(text: string): ParsedTimetablePeriod[] {
   const periods: ParsedTimetablePeriod[] = [];
   let currentDay = 'Monday';
@@ -41,7 +107,9 @@ export function parseTimetableText(text: string): ParsedTimetablePeriod[] {
     const parsed = parseLine(line, currentDay);
     if (parsed) periods.push(parsed);
   }
-  return dedupe(periods);
+  const direct = dedupe(periods);
+  if (direct.length) return direct;
+  return dedupe(parseColumnarPdfText(text));
 }
 
 export function parseTimetableCsv(csv: string): ParsedTimetablePeriod[] {
