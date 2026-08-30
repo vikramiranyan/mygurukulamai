@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from uuid import uuid4
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import Date, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -24,11 +24,11 @@ class Parent(Base):
 
 class Child(Base):
     __tablename__ = "children"
-    __table_args__ = (UniqueConstraint("parent_id", "child_id", name="uq_child_parent_child_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     parent_id: Mapped[int] = mapped_column(ForeignKey("parents.id", ondelete="CASCADE"), index=True)
-    child_id: Mapped[str] = mapped_column(String(36), default=lambda: str(uuid4()), index=True)
+    # Public identifier: generated only by the server and globally unique.
+    child_id: Mapped[str] = mapped_column(String(36), default=lambda: str(uuid4()), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200))
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     gender: Mapped[str | None] = mapped_column(String(50), nullable=True)
