@@ -20,6 +20,7 @@ async function driveRequest<T>(token: string, url: string, init: RequestInit = {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
       ...(init.headers || {}),
     },
   });
@@ -27,11 +28,11 @@ async function driveRequest<T>(token: string, url: string, init: RequestInit = {
   if (!response.ok) {
     let detail = '';
     try {
-      const body = await response.json() as { error?: { message?: string; status?: string } };
-      detail = body.error?.message || body.error?.status || '';
+      const body = await response.json() as { error?: { message?: string; status?: string; errors?: Array<{ reason?: string; message?: string }> } };
+      detail = body.error?.message || body.error?.status || body.error?.errors?.[0]?.reason || '';
     } catch {
       try {
-        detail = (await response.text()).slice(0, 300);
+        detail = (await response.text()).slice(0, 500);
       } catch {
         // Ignore secondary parsing failures.
       }
@@ -42,8 +43,18 @@ async function driveRequest<T>(token: string, url: string, init: RequestInit = {
     );
   }
 
-  // DELETE returns an empty body and is handled separately below.
   return response.json() as Promise<T>;
+}
+
+/**
+ * Authenticated Drive probe. The UI should not report Drive as connected until
+ * this succeeds; Google Login and Drive OAuth are separate capabilities.
+ */
+export async function probeDriveAccess(token: string): Promise<void> {
+  await driveRequest<{ user?: { permissionId?: string } }>(
+    token,
+    `${DRIVE_API}/about?fields=user(permissionId)`,
+  );
 }
 
 function escapeDriveQueryValue(value: string): string {
@@ -57,7 +68,7 @@ async function findFolder(token: string, name: string, parentId?: string): Promi
   );
   const data = await driveRequest<DriveListResponse>(
     token,
-    `${DRIVE_API}/files?q=${q}&fields=files(id,name,mimeType,parents)&spaces=drive&pageSize=100`,
+    `${DRIVE_API}/files?q=${q}&corpora=user&fields=files(id,name,mimeType,parents)&spaces=drive&pageSize=100`,
   );
   return data.files[0] || null;
 }
@@ -86,7 +97,7 @@ export async function findChildFile(token: string, childrenFolderId: string, chi
   );
   const data = await driveRequest<DriveListResponse>(
     token,
-    `${DRIVE_API}/files?q=${q}&fields=files(id,name,mimeType,parents)&spaces=drive&pageSize=100`,
+    `${DRIVE_API}/files?q=${q}&corpora=user&fields=files(id,name,mimeType,parents)&spaces=drive&pageSize=100`,
   );
   return data.files[0] || null;
 }
@@ -103,7 +114,7 @@ export async function listChildFiles(token: string, childrenFolderId: string): P
     const tokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
     const data = await driveRequest<DriveListResponse>(
       token,
-      `${DRIVE_API}/files?q=${q}&fields=nextPageToken,files(id,name,mimeType,parents)&spaces=drive&pageSize=100${tokenParam}`,
+      `${DRIVE_API}/files?q=${q}&corpora=user&fields=nextPageToken,files(id,name,mimeType,parents)&spaces=drive&pageSize=100${tokenParam}`,
     );
     files.push(...data.files);
     pageToken = data.nextPageToken || '';
@@ -152,7 +163,7 @@ export async function writeJson<T>(
 export async function deleteFile(token: string, fileId: string): Promise<void> {
   const response = await fetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, {
     method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
   });
 
   if (!response.ok) {
@@ -162,7 +173,7 @@ export async function deleteFile(token: string, fileId: string): Promise<void> {
       detail = body.error?.message || body.error?.status || '';
     } catch {
       try {
-        detail = (await response.text()).slice(0, 300);
+        detail = (await response.text()).slice(0, 500);
       } catch {
         // Ignore secondary parsing failures.
       }
