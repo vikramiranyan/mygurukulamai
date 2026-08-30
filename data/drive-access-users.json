@@ -1,3 +1,6 @@
 {
-  "users": []
+  "algorithm": "AES-256-GCM",
+  "ciphertext": "y5la2Uf-ipiCAfZClWD4PDcvTqomx_nofP-mbMSo0t6PCA",
+  "nonce": "Mi10wQczQdIwGVIK",
+  "version": 1
 }
