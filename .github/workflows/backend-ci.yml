@@ -32,4 +32,4 @@ jobs:
           GOOGLE_CLIENT_ID: ci-test-client
           JWT_SECRET: ci-test-secret-for-validation-only
           FRONTEND_ORIGINS: http://localhost:5173
-        run: pytest -q
+        run: PYTHONPATH=. pytest -q
