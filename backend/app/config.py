@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     github_drive_registry_path: str = "data/drive-access-users.json"
     github_branch: str = "main"
     drive_registry_hmac_secret: str = ""
+    # Base64url-encoded 32-byte AES-256-GCM key. Keep only in the backend secret store.
+    drive_registry_encryption_key: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
