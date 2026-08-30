@@ -6,6 +6,7 @@ export type DriveTokenClient = {
 
 type DriveTokenResponse = {
   access_token?: string;
+  scope?: string;
   error?: string | { error?: string; error_description?: string };
   error_description?: string;
 };
@@ -23,6 +24,11 @@ export function createDriveTokenClient(
     scope: GOOGLE_DRIVE_SCOPE,
     callback: (response: DriveTokenResponse) => {
       if (response.access_token) {
+        const grantedScopes = response.scope?.split(/\s+/).filter(Boolean) || [];
+        if (grantedScopes.length && !grantedScopes.includes(GOOGLE_DRIVE_SCOPE)) {
+          onError?.(new Error('Google Drive permission was not granted for this app'));
+          return;
+        }
         callback(response.access_token);
         return;
       }
