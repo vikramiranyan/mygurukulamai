@@ -67,7 +67,7 @@ function ChildDetails({ children, setChildren, active, setActive, driveSync }: {
     try {
       await driveSync.saveChild(edit as DriveChildRecord);
       setChildren(current => current.some(c => c.id === edit.id) ? current.map(c => c.id === edit.id ? edit : c) : [...current, edit]);
-      setActive(current => current || edit.id);
+      if (!active) setActive(edit.id);
       setEdit(null); setNotice('Child saved successfully.');
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Child could not be saved.'); }
     finally { setBusy(false); }
@@ -78,11 +78,9 @@ function ChildDetails({ children, setChildren, active, setActive, driveSync }: {
     setBusy(true); setNotice('Deleting…');
     try {
       await driveSync.removeChild(child.id);
-      setChildren(current => {
-        const remaining = current.filter(c => c.id !== child.id);
-        if (active === child.id) setActive(remaining[0]?.id || '');
-        return remaining;
-      });
+      const remaining = children.filter(c => c.id !== child.id);
+      setChildren(remaining);
+      if (active === child.id) setActive(remaining[0]?.id || '');
       setNotice('Child deleted successfully.');
     }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Child could not be deleted.'); }
