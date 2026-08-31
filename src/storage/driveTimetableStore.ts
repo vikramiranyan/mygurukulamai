@@ -1,12 +1,7 @@
 import { ensureGurukulamFolders, listChildFiles, readFile, writeJson, type DriveFile } from './googleDrive';
+import type { ParsedTimetablePeriod } from '../timetable/parser';
 
-export type TimetablePeriodRecord = {
-  day: string;
-  start: string;
-  end: string;
-  subject: string;
-  type?: string;
-};
+export type TimetablePeriodRecord = ParsedTimetablePeriod;
 
 export type ChildTimetableRecord = {
   version: 1;
