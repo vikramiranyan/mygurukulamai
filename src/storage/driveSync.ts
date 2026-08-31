@@ -63,12 +63,17 @@ export class DriveSyncController {
           .then(async () => {
             if (version !== this.configurationVersion) return;
             this.token = token;
+            await this.migrateLocalChildren(onError);
+            if (version !== this.configurationVersion) return;
+
+            // Only release callers waiting for a Drive token after local data
+            // reconciliation has completed. This prevents an authorized caller
+            // from loading an incomplete child list during migration.
             this.resolveToken?.(token);
             this.resolveToken = null;
             this.rejectToken = null;
             this.waitingForToken = null;
-            await this.migrateLocalChildren(onError);
-            if (version === this.configurationVersion) onToken(token);
+            onToken(token);
           })
           .catch((error) => {
             if (version !== this.configurationVersion) return;
