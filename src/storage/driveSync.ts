@@ -175,15 +175,33 @@ export class DriveSyncController {
     try { localChildren = JSON.parse(localStorage.getItem(localKey) || '[]'); } catch { localChildren = []; }
 
     const meaningful = localChildren.filter(child => child?.id && child.name?.trim());
+    if (!meaningful.length) {
+      localStorage.removeItem(localKey);
+      localStorage.removeItem(`gurukulam:${encodeURIComponent(userId)}:active-child`);
+      sessionStorage.setItem(`gurukulam-drive-local-migration-done:${userId}`, '1');
+      return;
+    }
+
     try {
       const remote = await loadChildrenFromDrive(this.token);
-      if (!remote.length && meaningful.length) {
-        for (const child of meaningful) await saveChildToDrive(this.token, child);
+      const remoteIds = new Set(remote.map(child => child.id));
+
+      // Reconcile by child ID. Existing Drive records remain authoritative;
+      // local records missing from Drive are uploaded. Nothing is discarded
+      // until every meaningful local record is known to exist remotely.
+      for (const child of meaningful) {
+        if (!remoteIds.has(child.id)) {
+          await saveChildToDrive(this.token, child);
+          remoteIds.add(child.id);
+        }
       }
+
       localStorage.removeItem(localKey);
       localStorage.removeItem(`gurukulam:${encodeURIComponent(userId)}:active-child`);
       sessionStorage.setItem(`gurukulam-drive-local-migration-done:${userId}`, '1');
     } catch (error) {
+      // Keep the local copy when reconciliation fails. This makes migration
+      // retryable and prevents partial Drive/network failures from losing data.
       onError(error);
     }
   }
