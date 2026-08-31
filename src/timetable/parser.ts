@@ -2,8 +2,9 @@ export type ParsedTimetablePeriod = { day: string; start: string; end: string; s
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const BREAK_WORDS = /^(break|lunch|recess|assembly|prayer|interval|free|activity)$/i;
+const BREAK_SUBJECTS = new Set(['assembly time', 'fruit break', 'lunch']);
 const TIME_RE = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:-|–|—|to)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i;
-const COLUMN_SUBJECTS = ['Assembly Time', 'Fruit Break', 'Language Lab', 'English', 'Computer', 'Hindi', 'TK', 'Lunch', 'Drawing', 'EVS', 'Maths', 'Dear', 'Skating', 'Robotics', 'CACA', 'P.E.', 'Dance', 'Yoga', 'GK', 'Music'];
+const COLUMN_SUBJECTS = ['Assembly Time', 'Fruit Break', 'Language Lab', 'English', 'Computer', 'Hindi', 'TK', 'Lunch', 'Drawing', 'EVS', 'Maths', 'DEAR', 'Skating', 'Robotics', 'CACA', 'P.E.', 'Dance', 'Yoga', 'GK', 'Music'];
 const DAY_ALIASES: Record<string, string> = { MON: 'Monday', TUES: 'Tuesday', WED: 'Wednesday', THURS: 'Thursday', FRI: 'Friday', SAT: 'Saturday' };
 
 function to24(hour: number, minute: number, meridiem?: string) {
@@ -14,7 +15,14 @@ function to24(hour: number, minute: number, meridiem?: string) {
 }
 
 function normaliseSubject(value: string) {
-  return value.trim().replace(/\s+/g, ' ').replace(/[|,;]+$/, '').trim();
+  const cleaned = value.trim().replace(/\s+/g, ' ').replace(/[|,;]+$/, '').trim();
+  if (/^dear$/i.test(cleaned)) return 'DEAR';
+  return cleaned;
+}
+
+function isBreakSubject(subject: string): boolean {
+  const normalized = normaliseSubject(subject).toLocaleLowerCase();
+  return BREAK_SUBJECTS.has(normalized) || BREAK_WORDS.test(normalized.split(/\s+/)[0]);
 }
 
 function parseLine(line: string, currentDay: string) {
@@ -28,7 +36,7 @@ function parseLine(line: string, currentDay: string) {
   const end = to24(endHour, endMinute, match[6] || match[3]);
   const subject = normaliseSubject(line.slice(match.index! + match[0].length));
   if (!subject || TIME_RE.test(subject)) return null;
-  const type: 'class' | 'break' = BREAK_WORDS.test(subject.split(/\s+/)[0]) ? 'break' : 'class';
+  const type: 'class' | 'break' = isBreakSubject(subject) ? 'break' : 'class';
   return { day: currentDay, start, end, subject, type };
 }
 
@@ -48,14 +56,14 @@ function splitColumnCell(raw: string): string[] {
   if (/^skating lunch$/i.test(value)) return ['Skating', 'Lunch'];
   if (/^language\s+lab$/i.test(value)) return ['Language Lab'];
   const exact = COLUMN_SUBJECTS.find(subject => subject.toLowerCase() === value.toLowerCase());
-  if (exact) return [exact];
+  if (exact) return [normaliseSubject(exact)];
   const sorted = [...COLUMN_SUBJECTS].sort((a, b) => b.length - a.length);
   const result: string[] = [];
   let rest = value;
   while (rest) {
     const subject = sorted.find(candidate => rest.toLowerCase().startsWith(candidate.toLowerCase()) && (rest.length === candidate.length || /\s/.test(rest[candidate.length])));
     if (!subject) return [value];
-    result.push(subject);
+    result.push(normaliseSubject(subject));
     rest = rest.slice(subject.length).trim();
   }
   return result;
@@ -94,8 +102,8 @@ function parseFlatColumnarPdfText(text: string): ParsedTimetablePeriod[] {
       const range = timeRanges[index];
       const startTime = to24(Number(range.start.split(':')[0]), Number(range.start.split(':')[1]), range.meridiem);
       const endTime = to24(Number(range.end.split(':')[0]), Number(range.end.split(':')[1]), range.meridiem);
-      const type: 'class' | 'break' = BREAK_WORDS.test(subject.split(/\s+/)[0]) ? 'break' : 'class';
-      periods.push({ day, start: startTime, end: endTime, subject, type });
+      const type: 'class' | 'break' = isBreakSubject(subject) ? 'break' : 'class';
+      periods.push({ day, start: startTime, end: endTime, subject: normaliseSubject(subject), type });
     });
   }
   return periods;
@@ -112,7 +120,7 @@ function extractFlatCells(block: string): string[] {
       cursor += 1;
       continue;
     }
-    cells.push(match);
+    cells.push(normaliseSubject(match));
     cursor += match.length;
     while (/\s/.test(block[cursor] || '')) cursor += 1;
   }
@@ -139,8 +147,8 @@ function parseDayBlocks(lines: string[], dayIndices: Array<{ line: string; index
       const range = timeRanges[index];
       const start = to24(Number(range.start.split(':')[0]), Number(range.start.split(':')[1]), range.meridiem);
       const end = to24(Number(range.end.split(':')[0]), Number(range.end.split(':')[1]), range.meridiem);
-      const type: 'class' | 'break' = BREAK_WORDS.test(subject.split(/\s+/)[0]) ? 'break' : 'class';
-      periods.push({ day, start, end, subject, type });
+      const type: 'class' | 'break' = isBreakSubject(subject) ? 'break' : 'class';
+      periods.push({ day, start, end, subject: normaliseSubject(subject), type });
     });
   }
   return periods;
@@ -175,7 +183,7 @@ export function parseTimetableCsv(csv: string): ParsedTimetablePeriod[] {
   const idx = (names: string[]) => names.map(n => header.indexOf(n)).find(i => i >= 0) ?? -1;
   const dayI = idx(['day']); const startI = idx(['start', 'start time']); const endI = idx(['end', 'end time']); const subjectI = idx(['subject']);
   if (dayI < 0 || startI < 0 || endI < 0 || subjectI < 0) return [];
-  const parsed: ParsedTimetablePeriod[] = rows.slice(1).map(row => { const subject = normaliseSubject(row[subjectI] || ''); const type: 'class' | 'break' = BREAK_WORDS.test(subject) ? 'break' : 'class'; return { day: DAYS.includes(row[dayI]) ? row[dayI] : 'Monday', start: row[startI], end: row[endI], subject, type }; }).filter(p => p.subject);
+  const parsed: ParsedTimetablePeriod[] = rows.slice(1).map(row => { const subject = normaliseSubject(row[subjectI] || ''); const type: 'class' | 'break' = isBreakSubject(subject) ? 'break' : 'class'; return { day: DAYS.includes(row[dayI]) ? row[dayI] : 'Monday', start: row[startI], end: row[endI], subject, type }; }).filter(p => p.subject);
   return dedupe(parsed);
 }
 
