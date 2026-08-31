@@ -5,8 +5,8 @@ export default defineConfig({
   base: './',
   plugins: [react()],
   resolve: {
-    alias: {
-      'pdfjs-dist': '/src/timetable/pdfjsClient.ts',
-    },
+    alias: [
+      { find: /^pdfjs-dist$/, replacement: '/src/timetable/pdfjsClient.ts' },
+    ],
   },
 });
