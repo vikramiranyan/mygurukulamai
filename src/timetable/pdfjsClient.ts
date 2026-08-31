@@ -16,7 +16,7 @@ function withReadingOrder(content: any) {
     index,
     x: Number(item.transform?.[4] ?? 0),
     y: Number(item.transform?.[5] ?? 0),
-  })).sort((a, b) => {
+  })).sort((a: {y:number;x:number;index:number}, b: {y:number;x:number;index:number}) => {
     const yDelta = Math.abs(b.y - a.y);
     return yDelta > 2 ? b.y - a.y : a.x - b.x || a.index - b.index;
   });
