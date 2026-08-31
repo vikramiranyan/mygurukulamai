@@ -2,6 +2,7 @@ import { updateDriveAccessWithGoogleCredential } from '../api/authApi';
 import { clearLatestGoogleCredential, getLatestGoogleCredential } from '../auth/googleAuth';
 import { createDriveTokenClient, requestDriveAccess, type DriveTokenClient } from './googleDriveAuth';
 import { loadChildrenFromDrive, removeChildFromDrive, saveChildToDrive, type DriveChildRecord } from './driveChildStore';
+import { loadChildTimetable, saveChildTimetable, updateChildSubjects, type ChildTimetableRecord } from './driveTimetableStore';
 import { DriveApiError, probeDriveAccess } from './googleDrive';
 
 const SESSION_KEY = 'gurukulam-auth-session';
@@ -111,7 +112,6 @@ export class DriveSyncController {
     requestDriveAccess(this.client, '');
   }
 
-  /** Re-check Drive before protected navigation and re-establish it when needed. */
   async ensureConnection(): Promise<boolean> {
     try {
       await this.requireToken();
@@ -161,6 +161,22 @@ export class DriveSyncController {
 
   async removeChild(childId: string): Promise<void> {
     return removeChildFromDrive(await this.requireToken(), childId);
+  }
+
+  async loadTimetable(childId: string): Promise<ChildTimetableRecord | null> {
+    return loadChildTimetable(await this.requireToken(), childId);
+  }
+
+  async saveTimetable(record: ChildTimetableRecord) {
+    return saveChildTimetable(await this.requireToken(), record);
+  }
+
+  async updateSubjects(
+    childId: string,
+    subjects: string[],
+    auditEntry: ChildTimetableRecord['audit'][number],
+  ): Promise<ChildTimetableRecord> {
+    return updateChildSubjects(await this.requireToken(), childId, subjects, auditEntry);
   }
 
   private async migrateLocalChildren(onError: (error: unknown) => void): Promise<void> {
