@@ -54,7 +54,7 @@ function ChildAvatar({ gender }: { gender: string }) {
   return <span className="child-avatar child-avatar-neutral">👧</span>;
 }
 
-function ChildDetails({ children, setChildren, driveSync }: { children: Child[]; setChildren: React.Dispatch<React.SetStateAction<Child[]>>; driveSync: DriveSyncController }) {
+function ChildDetails({ children, setChildren, active, setActive, driveSync }: { children: Child[]; setChildren: React.Dispatch<React.SetStateAction<Child[]>>; active: string; setActive: (id: string) => void; driveSync: DriveSyncController }) {
   const [edit, setEdit] = useState<Child | null>(null);
   const [view, setView] = useState<Child | null>(null);
   const [busy, setBusy] = useState(false);
@@ -67,6 +67,7 @@ function ChildDetails({ children, setChildren, driveSync }: { children: Child[];
     try {
       await driveSync.saveChild(edit as DriveChildRecord);
       setChildren(current => current.some(c => c.id === edit.id) ? current.map(c => c.id === edit.id ? edit : c) : [...current, edit]);
+      setActive(current => current || edit.id);
       setEdit(null); setNotice('Child saved successfully.');
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Child could not be saved.'); }
     finally { setBusy(false); }
@@ -75,7 +76,15 @@ function ChildDetails({ children, setChildren, driveSync }: { children: Child[];
   const remove = async (child: Child) => {
     if (!confirm(`Delete ${child.name || 'this child'}? This action cannot be undone.`)) return;
     setBusy(true); setNotice('Deleting…');
-    try { await driveSync.removeChild(child.id); setChildren(current => current.filter(c => c.id !== child.id)); setNotice('Child deleted successfully.'); }
+    try {
+      await driveSync.removeChild(child.id);
+      setChildren(current => {
+        const remaining = current.filter(c => c.id !== child.id);
+        if (active === child.id) setActive(remaining[0]?.id || '');
+        return remaining;
+      });
+      setNotice('Child deleted successfully.');
+    }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Child could not be deleted.'); }
     finally { setBusy(false); }
   };
@@ -87,7 +96,7 @@ function Parents({ children, setChildren, active, setActive, back, signout, driv
   const [menu, setMenu] = useState<Menu>('children');
   const items: [Menu, string, string][] = [['children', '👧', 'Child Details'], ['timetable', '📅', 'Time Table / Subjects'], ['teachers', '👨‍🏫', 'Teacher Details'], ['subjects', '📚', 'Subjects'], ['tests', '📝', 'Test / Exam by School / Gurukulam'], ['teaching', '📖', "Today's Teaching"], ['homework', '🏠', "Kid's Homework"]];
   const selected = items.find(item => item[0] === menu)!;
-  return <div className="parent-app"><header className="parent-topbar"><Brand /><div className="top-actions"><button className="back-child" onClick={back}>← Child Dashboard</button><button className="signin" onClick={signout}>⇥ Sign out</button></div></header><div className="parent-shell"><aside className="parent-sidebar"><div className="sidebar-title"><span>👨‍👩‍👧</span><div><strong>Parent Dashboard</strong><small>Manage your children</small></div></div><nav>{items.map(item => <button key={item[0]} className={menu === item[0] ? 'selected' : ''} onClick={() => setMenu(item[0])}><span>{item[1]}</span><b>{item[2]}</b></button>)}</nav></aside><main className="parent-main">{menu !== 'children' && <section className="parent-hero"><div><span className="eyebrow">PARENTS DASHBOARD</span><h1>{selected[1]} {selected[2]}</h1><p>Parent-controlled tools for your child's Gurukulam AI learning environment.</p></div></section>}{menu === 'children' ? <ChildDetails children={children} setChildren={setChildren} driveSync={driveSync} /> : menu === 'timetable' ? <ParentTimetableSubjects children={children} active={active} setActive={setActive} driveSync={driveSync} /> : <section className="coming-section panel"><div className="coming-icon">{selected[1]}</div><small>COMING SOON</small><h2>{selected[2]}</h2><p>This menu is visible. Detailed functionality will be finalized before implementation.</p></section>}</main></div><footer>Gurukulam AI · Parent-controlled learning environment</footer></div>;
+  return <div className="parent-app"><header className="parent-topbar"><Brand /><div className="top-actions"><button className="back-child" onClick={back}>← Child Dashboard</button><button className="signin" onClick={signout}>⇥ Sign out</button></div></header><div className="parent-shell"><aside className="parent-sidebar"><div className="sidebar-title"><span>👨‍👩‍👧</span><div><strong>Parent Dashboard</strong><small>Manage your children</small></div></div><nav>{items.map(item => <button key={item[0]} className={menu === item[0] ? 'selected' : ''} onClick={() => setMenu(item[0])}><span>{item[1]}</span><b>{item[2]}</b></button>)}</nav></aside><main className="parent-main">{menu !== 'children' && <section className="parent-hero"><div><span className="eyebrow">PARENTS DASHBOARD</span><h1>{selected[1]} {selected[2]}</h1><p>Parent-controlled tools for your child's Gurukulam AI learning environment.</p></div></section>}{menu === 'children' ? <ChildDetails children={children} setChildren={setChildren} active={active} setActive={setActive} driveSync={driveSync} /> : menu === 'timetable' ? <ParentTimetableSubjects children={children} active={active} setActive={setActive} driveSync={driveSync} /> : <section className="coming-section panel"><div className="coming-icon">{selected[1]}</div><small>COMING SOON</small><h2>{selected[2]}</h2><p>This menu is visible. Detailed functionality will be finalized before implementation.</p></section>}</main></div><footer>Gurukulam AI · Parent-controlled learning environment</footer></div>;
 }
 
 function App() {
@@ -105,6 +114,20 @@ function App() {
   }, [session?.user.id, driveSync]);
 
   useEffect(() => { if (session) sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); else sessionStorage.removeItem(SESSION_KEY); }, [session]);
+
+  useEffect(() => {
+    if (!session) return;
+    const checkExpiry = () => {
+      if (!isSessionValid(session)) {
+        driveSync.reset();
+        setSession(null);
+      }
+    };
+    checkExpiry();
+    const timer = window.setInterval(checkExpiry, 30_000);
+    return () => window.clearInterval(timer);
+  }, [session, driveSync]);
+
   if (!session) return <Login setSession={setSession} />;
   const signout = () => { driveSync.reset(); setSession(null); setView('child'); };
   const child = children.find(item => item.id === active) || children[0] || blankChild();
