@@ -64,7 +64,7 @@ export async function loadChildTimetable(token: string, childId: string): Promis
   };
 }
 
-export async function saveChildTimetable(token: string, record: ChildTimetableRecord): Promise<DriveFile> {
+export async function saveChildTimetable(token: string, record: ChildTimetableRecord): Promise<ChildTimetableRecord> {
   if (!record.childId.trim()) throw new Error('A child must be selected before saving a timetable.');
   if (!record.periods.length) throw new Error('At least one timetable period is required.');
   const { childrenId } = await ensureGurukulamFolders(token);
@@ -81,7 +81,8 @@ export async function saveChildTimetable(token: string, record: ChildTimetableRe
       subject: normalizeSubject(period.subject),
     })),
   };
-  return writeJson(token, childrenId, timetableFileName(safeRecord.childId), safeRecord, existing?.id);
+  await writeJson(token, childrenId, timetableFileName(safeRecord.childId), safeRecord, existing?.id);
+  return safeRecord;
 }
 
 export async function updateChildSubjects(
