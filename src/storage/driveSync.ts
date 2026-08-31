@@ -65,10 +65,6 @@ export class DriveSyncController {
             this.token = token;
             await this.migrateLocalChildren(onError);
             if (version !== this.configurationVersion) return;
-
-            // Only release callers waiting for a Drive token after local data
-            // reconciliation has completed. This prevents an authorized caller
-            // from loading an incomplete child list during migration.
             this.resolveToken?.(token);
             this.resolveToken = null;
             this.rejectToken = null;
@@ -176,14 +172,42 @@ export class DriveSyncController {
     if (!userId || !this.token) return;
 
     const localKey = `gurukulam:${encodeURIComponent(userId)}:children`;
-    let localChildren: DriveChildRecord[] = [];
-    try { localChildren = JSON.parse(localStorage.getItem(localKey) || '[]'); } catch { localChildren = []; }
+    let parsed: unknown = [];
+    try {
+      parsed = JSON.parse(localStorage.getItem(localKey) || '[]');
+    } catch {
+      // Preserve the original value when it cannot be parsed. It may contain
+      // recoverable data and must never be silently destroyed during migration.
+      onError(new Error('Local child data could not be read; migration was skipped.'));
+      return;
+    }
 
-    const meaningful = localChildren.filter(child => child?.id && child.name?.trim());
+    if (!Array.isArray(parsed)) {
+      onError(new Error('Local child data has an invalid format; migration was skipped.'));
+      return;
+    }
+
+    const meaningful: DriveChildRecord[] = [];
+    const unMigratable: unknown[] = [];
+    for (const value of parsed) {
+      if (value && typeof value === 'object' && 'id' in value && 'name' in value &&
+          typeof value.id === 'string' && value.id.trim() &&
+          typeof value.name === 'string' && value.name.trim()) {
+        meaningful.push(value as DriveChildRecord);
+      } else {
+        unMigratable.push(value);
+      }
+    }
+
     if (!meaningful.length) {
-      localStorage.removeItem(localKey);
-      localStorage.removeItem(`gurukulam:${encodeURIComponent(userId)}:active-child`);
-      sessionStorage.setItem(`gurukulam-drive-local-migration-done:${userId}`, '1');
+      // Keep malformed/unrecognized records instead of treating them as safe
+      // to delete. A future migration version can recover them.
+      if (unMigratable.length) {
+        localStorage.setItem(localKey, JSON.stringify(unMigratable));
+      } else {
+        localStorage.removeItem(localKey);
+        localStorage.removeItem(`gurukulam:${encodeURIComponent(userId)}:active-child`);
+      }
       return;
     }
 
@@ -201,8 +225,15 @@ export class DriveSyncController {
         }
       }
 
-      localStorage.removeItem(localKey);
-      localStorage.removeItem(`gurukulam:${encodeURIComponent(userId)}:active-child`);
+      // Only remove records that were successfully reconciled. Preserve any
+      // unrecognized local entries so a migration cannot destroy data it did
+      // not understand.
+      if (unMigratable.length) {
+        localStorage.setItem(localKey, JSON.stringify(unMigratable));
+      } else {
+        localStorage.removeItem(localKey);
+        localStorage.removeItem(`gurukulam:${encodeURIComponent(userId)}:active-child`);
+      }
       sessionStorage.setItem(`gurukulam-drive-local-migration-done:${userId}`, '1');
     } catch (error) {
       // Keep the local copy when reconciliation fails. This makes migration
