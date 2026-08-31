@@ -44,7 +44,7 @@ describe('timetable parser', () => {
     const periods = parseTimetableText(text);
     const subjects = extractSubjects(periods).sort();
     expect(periods).toHaveLength(66);
-    expect(subjects).toEqual(['CACA', 'Computer', 'DEAR', 'Dance', 'Drawing', 'EVS', 'English', 'GK', 'Hindi', 'Maths', 'Music', 'P.E.', 'Robotics', 'Skating', 'TK', 'Yoga']);
+    expect(subjects).toEqual(['CACA', 'Computer', 'DEAR', 'Dance', 'Drawing', 'EVS', 'English', 'GK', 'Hindi', 'Language Lab', 'Maths', 'Music', 'P.E.', 'Robotics', 'Skating', 'TK', 'Yoga']);
     expect(subjects).not.toContain('Assembly Time');
     expect(subjects).not.toContain('Fruit Break');
     expect(subjects).not.toContain('Lunch');
