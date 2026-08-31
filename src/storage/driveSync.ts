@@ -1,5 +1,4 @@
-import { updateDriveAccessWithGoogleCredential } from '../api/authApi';
-import { clearLatestGoogleCredential, getLatestGoogleCredential } from '../auth/googleAuth';
+import { clearLatestGoogleCredential } from '../auth/googleAuth';
 import { createDriveTokenClient, requestDriveAccess, type DriveTokenClient } from './googleDriveAuth';
 import { loadChildrenFromDrive, removeChildFromDrive, saveChildToDrive, type DriveChildRecord } from './driveChildStore';
 import { loadChildTimetable, saveChildTimetable, updateChildSubjects, type ChildTimetableRecord } from './driveTimetableStore';
@@ -12,16 +11,6 @@ function readJson<T>(key: string, fallback: T): T {
     return JSON.parse(sessionStorage.getItem(key) || 'null') ?? fallback;
   } catch {
     return fallback;
-  }
-}
-
-async function syncDriveRegistry(status: boolean): Promise<void> {
-  const credential = getLatestGoogleCredential();
-  if (!credential) return;
-  try {
-    await updateDriveAccessWithGoogleCredential(credential, status);
-  } catch {
-    // Registry persistence is auxiliary and must never block Drive access.
   }
 }
 
@@ -78,7 +67,6 @@ export class DriveSyncController {
             this.resolveToken = null;
             this.rejectToken = null;
             this.waitingForToken = null;
-            await syncDriveRegistry(true);
             await this.migrateLocalChildren(onError);
             if (version === this.configurationVersion) onToken(token);
           })
@@ -99,7 +87,6 @@ export class DriveSyncController {
         this.rejectToken?.(error);
         this.rejectToken = null;
         this.waitingForToken = null;
-        void syncDriveRegistry(false);
         onError(error);
       },
     );
@@ -134,7 +121,6 @@ export class DriveSyncController {
       } catch (error) {
         if (error instanceof DriveApiError && (error.status === 401 || error.status === 403)) {
           this.token = '';
-          void syncDriveRegistry(false);
         } else {
           throw error;
         }
