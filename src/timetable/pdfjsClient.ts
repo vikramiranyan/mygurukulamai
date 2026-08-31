@@ -1,12 +1,13 @@
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 
-// Vite/GitHub Pages: bundle the worker with the application instead of relying
-// on a CDN or a runtime-relative worker URL. This is the supported workaround
-// for pdfjs-dist 4.x in Vite builds.
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString();
+// Keep the PDF.js worker bundled with the app. Passing an explicit Worker
+// avoids runtime-relative worker resolution problems on GitHub Pages.
+if (typeof window !== 'undefined' && 'Worker' in window) {
+  pdfjs.GlobalWorkerOptions.workerPort = new Worker(workerUrl, { type: 'module' });
+} else {
+  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+}
 
 function withReadingOrder(content: any) {
   const items = (content.items || []).filter((item: any) => item && typeof item.str === 'string');
@@ -35,12 +36,7 @@ function withReadingOrder(content: any) {
 }
 
 export function getDocument(source: any) {
-  const loadingTask = pdfjs.getDocument({
-    ...source,
-    // Keep PDF.js image-decoder assets local to the application when needed.
-    wasmUrl: new URL('pdfjs-dist/wasm/', import.meta.url).toString(),
-  });
-
+  const loadingTask = pdfjs.getDocument(source);
   return {
     ...loadingTask,
     promise: loadingTask.promise.then((pdf: any) => {
@@ -51,8 +47,7 @@ export function getDocument(source: any) {
           return async (pageNumber: number) => {
             const page = await originalGetPage(pageNumber);
             const originalGetTextContent = page.getTextContent.bind(page);
-            page.getTextContent = async (...args: any[]) =>
-              withReadingOrder(await originalGetTextContent(...args));
+            page.getTextContent = async (...args: any[]) => withReadingOrder(await originalGetTextContent(...args));
             return page;
           };
         },
