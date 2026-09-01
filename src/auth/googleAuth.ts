@@ -21,8 +21,6 @@ export type GoogleCredentialClaims = {
   iss?: string;
 };
 
-let latestGoogleCredential = '';
-
 export interface GoogleAuthAdapter {
   signIn(): Promise<AuthSession>;
   signOut(): Promise<void>;
@@ -48,14 +46,6 @@ export function decodeGoogleCredential(token: string): GoogleCredentialClaims | 
   }
 }
 
-export function getLatestGoogleCredential(): string {
-  return latestGoogleCredential;
-}
-
-export function clearLatestGoogleCredential(): void {
-  latestGoogleCredential = '';
-}
-
 /**
  * Parse a Google ID token for UI identity information only.
  * The signature is intentionally NOT trusted here: cryptographic verification
@@ -74,7 +64,6 @@ export function credentialToSession(
   const expiresAt = claims.exp * 1000;
   if (expiresAt <= now) return null;
 
-  latestGoogleCredential = token;
   return {
     user: {
       id: claims.sub,
