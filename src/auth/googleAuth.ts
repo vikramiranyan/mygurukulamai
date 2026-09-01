@@ -56,6 +56,12 @@ export function clearLatestGoogleCredential(): void {
   latestGoogleCredential = '';
 }
 
+/**
+ * Parse a Google ID token for UI identity information only.
+ * The signature is intentionally NOT trusted here: cryptographic verification
+ * belongs on the backend. Callers must not treat this result as server-side
+ * authentication or authorization.
+ */
 export function credentialToSession(
   token: string,
   expectedClientId: string,
