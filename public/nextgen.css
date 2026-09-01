@@ -30,6 +30,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .teacher-orb.is-listening{animation:teacherListen 1.25s ease-in-out infinite}
 .teacher-orb.is-speaking{animation:teacherSpeak .75s ease-in-out infinite}
 .voice-status{display:block;width:100%;color:#718078;margin-top:9px;line-height:1.45}
+#gurukulam-legal-links{position:fixed;right:12px;bottom:10px;z-index:9999;display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.88);backdrop-filter:blur(10px);box-shadow:0 8px 25px rgba(23,61,52,.12);font:600 11px/1.2 system-ui,sans-serif}
+#gurukulam-legal-links a{color:#49635b;text-decoration:none}#gurukulam-legal-links a:hover{text-decoration:underline}
 .login-google-button:active{transform:scale(.985)!important}
 @keyframes gkFloat{0%,100%{transform:translateY(0) rotateX(0deg)}50%{transform:translateY(-5px) rotateX(.7deg)}}
 @keyframes gkTeacherFloat{0%,100%{transform:translateZ(18px) translateY(0)}50%{transform:translateZ(28px) translateY(-6px)}}
@@ -40,5 +42,5 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 @keyframes teacherListen{0%,100%{transform:perspective(700px) scale(1) rotateY(-5deg)}50%{transform:perspective(700px) scale(1.04) rotateY(5deg)}}
 @keyframes teacherSpeak{0%,100%{transform:perspective(700px) scale(1) rotateX(2deg)}50%{transform:perspective(700px) scale(1.055) rotateX(-2deg)}}
 @media(max-width:900px){.login-art-card{animation-duration:8s}.login-art-card img{animation-duration:7s}.dashboard-app main{padding:16px!important}.dashboard-app .panel{border-radius:18px}.teacher-presence{align-items:flex-start}.teacher-orb{width:112px;min-width:112px;border-radius:28px}.teacher-orb-face{font-size:44px}}
-@media(max-width:560px){.login-art-card img{transform:translateZ(10px)}.dashboard-app main>.panel{margin-bottom:14px!important}.dashboard-app input,.dashboard-app button{min-height:46px}.teacher-presence{gap:12px;padding:18px!important}.teacher-orb{width:94px;min-width:94px}.teacher-orb-face{font-size:36px}.teacher-orb span{font-size:9px}}
+@media(max-width:560px){.login-art-card img{transform:translateZ(10px)}.dashboard-app main>.panel{margin-bottom:14px!important}.dashboard-app input,.dashboard-app button{min-height:46px}.teacher-presence{gap:12px;padding:18px!important}.teacher-orb{width:94px;min-width:94px}.teacher-orb-face{font-size:36px}.teacher-orb span{font-size:9px}#gurukulam-legal-links{right:8px;bottom:6px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}}
