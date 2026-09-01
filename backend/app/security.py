@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import uuid
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -21,6 +22,8 @@ def _credentials_error() -> HTTPException:
 
 def verify_google_credential(credential: str) -> dict:
     settings = get_settings()
+    if not credential or len(credential) > 8192:
+        raise _credentials_error()
     try:
         claims = id_token.verify_oauth2_token(
             credential,
@@ -32,15 +35,25 @@ def verify_google_credential(credential: str) -> dict:
 
     if claims.get("iss") not in {"accounts.google.com", "https://accounts.google.com"}:
         raise _credentials_error()
-    if not claims.get("sub") or not claims.get("email"):
+    if not claims.get("sub") or not claims.get("email") or claims.get("email_verified") is not True:
         raise _credentials_error()
     return claims
 
 
 def issue_access_token(parent: Parent) -> tuple[str, datetime]:
     settings = get_settings()
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
-    payload = {"sub": str(parent.id), "exp": expires_at, "type": "parent"}
+    issued_at = datetime.now(timezone.utc)
+    expires_at = issued_at + timedelta(minutes=settings.jwt_expire_minutes)
+    payload = {
+        "sub": str(parent.id),
+        "exp": expires_at,
+        "iat": issued_at,
+        "nbf": issued_at,
+        "jti": str(uuid.uuid4()),
+        "iss": settings.jwt_issuer,
+        "aud": settings.jwt_audience,
+        "type": "parent",
+    }
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256"), expires_at
 
 
@@ -50,8 +63,16 @@ def get_current_parent(
 ) -> Parent:
     if not credentials or credentials.scheme.lower() != "bearer":
         raise _credentials_error()
+    settings = get_settings()
     try:
-        payload = jwt.decode(credentials.credentials, get_settings().jwt_secret, algorithms=["HS256"])
+        payload = jwt.decode(
+            credentials.credentials,
+            settings.jwt_secret,
+            algorithms=["HS256"],
+            issuer=settings.jwt_issuer,
+            audience=settings.jwt_audience,
+            options={"require": ["sub", "exp", "iat", "nbf", "jti", "iss", "aud"]},
+        )
         if payload.get("type") != "parent":
             raise _credentials_error()
         parent_id = int(payload["sub"])
