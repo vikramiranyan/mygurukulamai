@@ -56,6 +56,10 @@ function App() {
     if (!session) {
       driveSync.reset(); setChildren([]); setActive(''); setWorkspace({}); setWorkspaceReady(false); return;
     }
+    // Persist the authenticated Google user before configuring Drive. The Drive
+    // controller uses this ID to remember whether drive.file consent was already
+    // granted, preventing a new consent dialog on every reload/session restore.
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
     setChildren([]); setActive(''); setWorkspace({}); setWorkspaceReady(false); setView('child');
     const workspaceKey = `gurukulam:${encodeURIComponent(session.user.id)}:learning-workspace`;
     let legacyWorkspace: LearningWorkspace = {};
@@ -93,25 +97,15 @@ function App() {
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
       const entries = Object.entries(workspace);
-      void Promise.all(entries.map(async ([childIdValue, childWorkspace]) => {
-        try { await driveSync.saveWorkspace(childIdValue, childWorkspace); }
-        catch (error) { console.error(`Learning workspace sync failed for ${childIdValue}:`, error); }
-      }));
-    }, 900);
+      void Promise.all(entries.map(([childIdValue, childWorkspace]) => driveSync.saveWorkspace(childIdValue, childWorkspace).catch(error => console.error('Workspace save failed:', error))));
+    }, 400);
     return () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); };
   }, [workspace, workspaceReady, session?.user.id, driveSync]);
 
-  useEffect(() => {
-    if (!session) return;
-    const checkExpiry = () => { if (!isSessionValid(session)) { driveSync.reset(); setSession(null); } };
-    checkExpiry(); const timer = window.setInterval(checkExpiry, 30_000); return () => window.clearInterval(timer);
-  }, [session, driveSync]);
-
+  const signout = () => { sessionStorage.removeItem(SESSION_KEY); driveSync.reset(); setSession(null); setView('child'); };
   if (!session) return <Login setSession={setSession} />;
-  const signout = () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); driveSync.reset(); setSession(null); setView('child'); };
-  const child = children.find(item => item.id === active) || children[0] || blankChild();
-  const childWorkspace = workspace[child.id] || defaultWorkspace();
-  return view === 'parents' ? <Parents children={children} setChildren={setChildren} active={active} setActive={setActive} back={() => setView('child')} signout={signout} driveSync={driveSync} workspace={workspace} setWorkspace={setWorkspace} /> : <LearningHome child={child} onParents={() => setView('parents')} signout={signout} workspace={childWorkspace} />;
+  if (!workspaceReady) return <div className="loading-screen">Connecting your private Google Drive…</div>;
+  return view === 'parents' ? <Parents children={children} setChildren={setChildren} active={active} setActive={setActive} back={() => setView('child')} signout={signout} driveSync={driveSync} workspace={workspace} setWorkspace={setWorkspace} /> : <LearningHome session={session} children={children} active={active} setActive={setActive} setView={setView} workspace={workspace} driveSync={driveSync} />;
 }
 
-createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);
+createRoot(document.getElementById('root')!).render(<App />);
