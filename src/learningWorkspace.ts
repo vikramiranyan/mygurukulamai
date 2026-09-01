@@ -10,14 +10,7 @@ export type LearningWorkspace = Record<string, ChildWorkspace>;
 
 /** A new child starts with no invented teachers, lessons, or subjects. All learning configuration is parent-created or timetable-derived. */
 export function defaultWorkspace(subjects: string[] = []): ChildWorkspace {
-  return {
-    teachers: [],
-    subjects: [...new Set(subjects.filter(Boolean))],
-    chapters: [],
-    tests: [],
-    today: [],
-    homework: [],
-  };
+  return { teachers: [], subjects: [...new Set(subjects.filter(Boolean))], chapters: [], tests: [], today: [], homework: [] };
 }
 
 export function normalizeWorkspace(value: unknown): LearningWorkspace {
@@ -31,6 +24,9 @@ export function normalizeWorkspace(value: unknown): LearningWorkspace {
     workspace.tests ??= [];
     workspace.today ??= [];
     workspace.homework ??= [];
+    // Migrate only the application's former seeded defaults; never invent replacements.
+    workspace.teachers = workspace.teachers.filter(teacher => !['teacher-vikram', 'teacher-raji'].includes(teacher.id));
+    workspace.today = workspace.today.filter(item => !/^today-\d+$/.test(item.id) || Boolean(item.chapterId));
     workspace.today = workspace.today.map(item => ({ ...item, scope: item.scope ?? 'full_chapter' }));
   }
   return result;
