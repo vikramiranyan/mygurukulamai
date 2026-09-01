@@ -54,7 +54,7 @@ function App() {
 
   useEffect(() => {
     if (!session) {
-      driveSync.reset(); setChildren([]); setActive(''); setWorkspace({}); setWorkspaceReady(false); return;
+      driveSync.reset(); setChildren([]); setActive(''); setWorkspace({}); setWorkspaceReady(false); sessionStorage.removeItem(SESSION_KEY); return;
     }
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
     setChildren([]); setActive(''); setWorkspace({}); setWorkspaceReady(false); setView('child');
@@ -104,12 +104,12 @@ function App() {
 
   useEffect(() => {
     if (!session) return;
-    const checkExpiry = () => { if (!isSessionValid(session)) { driveSync.reset(); setSession(null); } };
+    const checkExpiry = () => { if (!isSessionValid(session)) { driveSync.reset(); sessionStorage.removeItem(SESSION_KEY); setSession(null); } };
     checkExpiry(); const timer = window.setInterval(checkExpiry, 30_000); return () => window.clearInterval(timer);
   }, [session, driveSync]);
 
   if (!session) return <Login setSession={setSession} />;
-  const signout = () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); driveSync.reset(); setSession(null); setView('child'); };
+  const signout = () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); driveSync.reset(); sessionStorage.removeItem(SESSION_KEY); setSession(null); setView('child'); };
   const child = children.find(item => item.id === active) || children[0] || blankChild();
   const childWorkspace = workspace[child.id] || defaultWorkspace();
   return view === 'parents' ? <Parents children={children} setChildren={setChildren} active={active} setActive={setActive} back={() => setView('child')} signout={signout} driveSync={driveSync} workspace={workspace} setWorkspace={setWorkspace} /> : <LearningHome child={child} onParents={() => setView('parents')} signout={signout} workspace={childWorkspace} />;
