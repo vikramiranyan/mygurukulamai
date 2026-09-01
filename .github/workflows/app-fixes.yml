@@ -1,0 +1,55 @@
+name: Apply app fixes
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: "!contains(github.event.head_commit.message, '[app-fixes-applied]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Patch teacher controls and OCR
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/parentLearningTools.tsx')
+          s = p.read_text()
+
+          old = """  const saveTeacher = () => {\n    const name = text.trim();\n    const assignedSubject = subject.trim();\n    if (!name) { setNotice('Enter the teacher name.'); return; }\n    if (!assignedSubject) { setNotice('Select a subject before assigning a teacher.'); return; }\n    const existing = workspace.teachers.find(t => t.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase());\n    const teacher: TeacherProfile = existing\n      ? { ...existing, subjects: [...new Set([...existing.subjects, assignedSubject])] }\n      : { id: crypto.randomUUID(), name, role: 'Personal AI Teacher', subjects: [assignedSubject], style: 'Warm, patient and step-by-step', enabled: true };\n    const others = workspace.teachers.filter(t => t.id !== teacher.id);\n    setWorkspace({ ...workspace, teachers: [...others, teacher] });\n    setText(''); setNotice(`${teacher.name} is now assigned to ${assignedSubject}.`);\n  };\n"""
+          new = """  const saveTeacher = () => {\n    const name = text.trim();\n    const assignedSubject = subject.trim();\n    if (!name) { setNotice('Enter the teacher name.'); return; }\n    if (!assignedSubject) { setNotice('Select a subject before assigning a teacher.'); return; }\n    const existing = workspace.teachers.find(t => t.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase());\n    const teacher: TeacherProfile = existing\n      ? { ...existing, subjects: [...new Set([...existing.subjects, assignedSubject])] }\n      : { id: crypto.randomUUID(), name, role: 'Personal AI Teacher', subjects: [assignedSubject], style: 'Warm, patient and step-by-step', enabled: true };\n    const others = workspace.teachers.filter(t => t.id !== teacher.id);\n    setWorkspace({ ...workspace, teachers: [...others, teacher] });\n    setText(''); setNotice(`${teacher.name} is now assigned to ${assignedSubject}.`);\n  };\n\n  const modifyTeacher = (teacher: TeacherProfile) => {\n    const name = window.prompt('Teacher name', teacher.name)?.trim();\n    if (!name) return;\n    const rawSubjects = window.prompt('Subjects (comma-separated)', teacher.subjects.join(', '));\n    if (rawSubjects === null) return;\n    const subjects = [...new Set(rawSubjects.split(',').map(value => value.trim()).filter(Boolean))];\n    if (!subjects.length) { setNotice('Assign at least one subject to the teacher.'); return; }\n    if (workspace.teachers.some(t => t.id !== teacher.id && t.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase())) { setNotice('A teacher with that name already exists.'); return; }\n    setWorkspace({ ...workspace, teachers: workspace.teachers.map(t => t.id === teacher.id ? { ...t, name, subjects } : t) });\n    setNotice(`${name} was updated successfully.`);\n  };\n\n  const deleteTeacher = (teacher: TeacherProfile) => {\n    if (!window.confirm(`Delete teacher “${teacher.name}” from this child's learning setup?`)) return;\n    setWorkspace({ ...workspace, teachers: workspace.teachers.filter(t => t.id !== teacher.id) });\n    setNotice(`Teacher “${teacher.name}” deleted.`);\n  };\n"""
+          if old not in s:
+              raise SystemExit('teacher block not found')
+          s = s.replace(old, new, 1)
+
+          old_ui = """<button className={t.enabled ? 'secondary' : 'primary'} onClick={() => setWorkspace({ ...workspace, teachers: workspace.teachers.map(x => x.id === t.id ? { ...x, enabled: !x.enabled } : x) })}>{t.enabled ? 'Enabled' : 'Enable'}</button>"""
+          new_ui = """<div className=\"row-actions\"><button className=\"secondary\" onClick={() => modifyTeacher(t)}>✎ Modify</button><button className=\"danger\" onClick={() => deleteTeacher(t)}>Delete</button><button className={t.enabled ? 'secondary' : 'primary'} onClick={() => setWorkspace({ ...workspace, teachers: workspace.teachers.map(x => x.id === t.id ? { ...x, enabled: !x.enabled } : x) })}>{t.enabled ? 'Enabled' : 'Enable'}</button></div>"""
+          if old_ui not in s:
+              raise SystemExit('teacher UI block not found')
+          s = s.replace(old_ui, new_ui, 1)
+
+          old_ocr = """  const mod = await import('tesseract.js');\n  const result = await mod.recognize(file, 'eng');\n  return [{ number: 1, text: result.data.text.replace(/\\s+/g, ' ').trim().slice(0, 6000) }];"""
+          new_ocr = """  const mod = await import('tesseract.js');\n  const image = await createOcrImage(file);\n  const result = await (mod.recognize as any)(image, 'eng', { tessedit_pageseg_mode: 11 });\n  const text = String(result.data.text || '').replace(/\\s+/g, ' ').trim();\n  if (!text) throw new Error('No readable text detected in this image. Try a clearer image with good contrast.');\n  return [{ number: 1, text: text.slice(0, 6000) }];"""
+          if old_ocr not in s:
+              raise SystemExit('ocr block not found')
+          helper = """\nasync function createOcrImage(file: File): Promise<HTMLCanvasElement> {\n  const bitmap = await createImageBitmap(file);\n  const scale = Math.min(2, 2200 / Math.max(bitmap.width, bitmap.height));\n  const width = Math.max(1, Math.round(bitmap.width * scale));\n  const height = Math.max(1, Math.round(bitmap.height * scale));\n  const canvas = document.createElement('canvas');\n  canvas.width = width; canvas.height = height;\n  const ctx = canvas.getContext('2d', { willReadFrequently: true });\n  if (!ctx) throw new Error('Image processing is unavailable in this browser.');\n  ctx.drawImage(bitmap, 0, 0, width, height);\n  bitmap.close();\n  const image = ctx.getImageData(0, 0, width, height);\n  for (let i = 0; i < image.data.length; i += 4) {\n    const gray = Math.round(0.299 * image.data[i] + 0.587 * image.data[i + 1] + 0.114 * image.data[i + 2]);\n    const value = gray > 180 ? 255 : 0;\n    image.data[i] = value; image.data[i + 1] = value; image.data[i + 2] = value;\n  }\n  ctx.putImageData(image, 0, 0);\n  return canvas;\n}\n"""
+          marker = "async function extractChapterPages(file: File): Promise<ChapterPage[]> {"
+          s = s.replace(marker, helper + "\n" + marker, 1)
+          s = s.replace(old_ocr, new_ocr, 1)
+          p.write_text(s)
+
+          # Remove this one-shot workflow after applying the patch.
+          Path('.github/workflows/app-fixes.yml').unlink()
+      - name: Commit fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/parentLearningTools.tsx .github/workflows/app-fixes.yml
+          git commit -m "fix: teacher management and image OCR [app-fixes-applied]"
+          git push
