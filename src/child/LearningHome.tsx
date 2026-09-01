@@ -91,8 +91,24 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
     const decision = checkTutorInput(rawQuestion);
     if (!decision.allowed) { setFeedback(decision.reason || 'I cannot help with that request.'); if (speak) void speakFeedback(decision.reason || 'I cannot help with that request.'); return; }
     const safeQuestion = decision.normalized || rawQuestion.trim();
-    const response = teacherName ? `${teacherName} says: Let's explore “${safeQuestion}” using ${chapter?.title || 'this lesson'}. ${currentTarget ? `Today's parent-selected target is ${currentTarget.topic}.` : 'Start with the lesson explanation, then try the examples and checks.'}` : 'Your parent has not assigned a teacher to this subject yet.';
-    setFeedback(response); if (speak) void speakFeedback(response);
+    const q = safeQuestion.toLocaleLowerCase();
+    let response = '';
+
+    // The child-facing tutor must teach, not merely echo the child's request.
+    if (/\b(numbers?|count|counting)\b/.test(q) && /(10|ten|upto|up to|1-10|one to ten)/.test(q)) {
+      response = `${teacherName || 'Your teacher'} says: Great! Let's learn numbers from 1 to 10.\n\n1 — one\n2 — two\n3 — three\n4 — four\n5 — five\n6 — six\n7 — seven\n8 — eight\n9 — nine\n10 — ten\n\nLet's count together: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10! 🎉\n\nNow your turn: What number comes after 5? Type the answer, or use the microphone and say it. I will check your answer and then teach you the next step.`;
+    } else if (/\b(alphabet|letters|a to z|a-z)\b/.test(q)) {
+      response = `${teacherName || 'Your teacher'} says: Wonderful! Let's practise the English alphabet.\n\nA B C D E F G H I J K L M N O P Q R S T U V W X Y Z\n\nWe can learn a few letters at a time. A is for Apple 🍎, B is for Ball ⚽, and C is for Cat 🐱.\n\nCan you tell me which letter comes after B?`;
+    } else if (/\b(add|addition|plus)\b/.test(q)) {
+      response = `${teacherName || 'Your teacher'} says: Let's learn addition! Addition means putting groups together. For example, 2 + 3 means 2 things and 3 more things. Count them: 1, 2, 3, 4, 5. So 2 + 3 = 5.\n\nYour turn: What is 1 + 2?`;
+    } else if (/\b(hello|hi|hey)\b/.test(q.trim())) {
+      response = `${teacherName || 'Your teacher'} says: Hello! 👋 I am ready to learn with you. Tell me what you want to learn, such as numbers 1 to 10, the alphabet, addition, or your current lesson.`;
+    } else {
+      const lessonName = chapter?.title || subject || 'today’s lesson';
+      response = `${teacherName || 'Your teacher'} says: Let's learn this step by step. You asked: “${safeQuestion}”. We are working on ${lessonName}. First, I'll explain it simply, then we'll practise with an example, and finally I'll ask you one short question to check your understanding.\n\nTell me what part you want to learn first, or ask me a specific question about ${lessonName}.`;
+    }
+    setFeedback(response);
+    if (speak) void speakFeedback(response);
   };
   const askTutor = () => respondToTutor(question, true);
   const startVoice = async () => {
