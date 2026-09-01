@@ -8,7 +8,6 @@ export type AuthUser = {
 export type AuthSession = {
   user: AuthUser;
   expiresAt: number;
-  backendAccessToken?: string;
 };
 
 export type GoogleCredentialClaims = {
@@ -47,10 +46,9 @@ export function decodeGoogleCredential(token: string): GoogleCredentialClaims | 
 }
 
 /**
- * Parse a Google ID token for UI identity information only.
- * The signature is intentionally NOT trusted here: cryptographic verification
- * belongs on the backend. Callers must not treat this result as server-side
- * authentication or authorization.
+ * Parse the Google ID token returned by Google Identity Services for the
+ * browser session. Drive authorization is handled separately with the Google
+ * OAuth token client and the least-privilege drive.file scope.
  */
 export function credentialToSession(
   token: string,

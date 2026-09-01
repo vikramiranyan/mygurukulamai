@@ -48,6 +48,12 @@ export class DriveSyncController {
     const meaningful: DriveChildRecord[] = []; const unMigratable: unknown[] = [];
     for (const value of parsed) { if (value && typeof value === 'object' && 'id' in value && 'name' in value && typeof value.id === 'string' && value.id.trim() && typeof value.name === 'string' && value.name.trim()) meaningful.push(value as DriveChildRecord); else unMigratable.push(value); }
     if (!meaningful.length) { if (unMigratable.length) localStorage.setItem(localKey, JSON.stringify(unMigratable)); else { localStorage.removeItem(localKey); localStorage.removeItem(`gurukulam:${encodeURIComponent(userId)}:active-child`); } return; }
+
+    const confirmed = window.confirm(
+      `Gurukulam AI found ${meaningful.length} existing child record${meaningful.length === 1 ? '' : 's'} on this device.\n\nUpload ${meaningful.length === 1 ? 'it' : 'them'} to your Google Drive so your learning data is available across devices?\n\nChoose Cancel to keep the local draft only.`,
+    );
+    if (!confirmed) return;
+
     try { const remote = await loadChildrenFromDrive(this.token); const remoteIds = new Set(remote.map(child => child.id)); for (const child of meaningful) if (!remoteIds.has(child.id)) { await saveChildToDrive(this.token, child); remoteIds.add(child.id); } if (unMigratable.length) localStorage.setItem(localKey, JSON.stringify(unMigratable)); else { localStorage.removeItem(localKey); localStorage.removeItem(`gurukulam:${encodeURIComponent(userId)}:active-child`); } sessionStorage.setItem(`gurukulam-drive-local-migration-done:${userId}`, '1'); } catch (error) { onError(error); }
   }
   reset(): void { this.rejectToken?.(new Error('Google Drive session ended')); this.configurationVersion += 1; this.token = ''; this.client = null; this.waitingForToken = null; this.resolveToken = null; this.rejectToken = null; }
