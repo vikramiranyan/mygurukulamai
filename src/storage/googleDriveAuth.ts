@@ -1,7 +1,9 @@
 export const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
+export type DrivePrompt = '' | 'consent' | 'none' | 'select_account';
+
 export type DriveTokenClient = {
-  requestAccessToken: (overrideConfig?: { prompt?: string }) => void;
+  requestAccessToken: (overrideConfig?: { prompt?: DrivePrompt }) => void;
 };
 
 type DriveTokenResponse = {
@@ -22,6 +24,7 @@ export function createDriveTokenClient(
   return google.accounts.oauth2.initTokenClient({
     client_id: clientId,
     scope: GOOGLE_DRIVE_SCOPE,
+    include_granted_scopes: true,
     callback: (response: DriveTokenResponse) => {
       if (response.access_token) {
         const grantedScopes = response.scope?.split(/\s+/).filter(Boolean) || [];
@@ -36,14 +39,22 @@ export function createDriveTokenClient(
       const detail = typeof response.error === 'string'
         ? response.error
         : response.error?.error_description || response.error?.error || response.error_description;
-      onError?.(new Error(detail || 'Google Drive authorization failed'));
+      const error = new Error(detail || 'Google Drive authorization failed');
+      (error as Error & { code?: string }).code = typeof response.error === 'string'
+        ? response.error
+        : response.error?.error;
+      onError?.(error);
     },
   });
 }
 
-export function requestDriveAccess(client: DriveTokenClient, prompt: 'consent' | '' = 'consent') {
-  // IMPORTANT: an empty prompt must be sent explicitly. Omitting the property
-  // makes GIS use its default `select_account` behavior, which caused the
-  // account chooser to appear again for returning users.
+/**
+ * Request a Drive token. Returning users must use a silent/normal token refresh
+ * instead of repeatedly forcing the consent dialog. Google documents that an
+ * empty prompt skips the account chooser and consent dialog for an existing
+ * authorization grant; `none` is used when we explicitly require a silent
+ * request with no UI at all.
+ */
+export function requestDriveAccess(client: DriveTokenClient, prompt: DrivePrompt = '') {
   client.requestAccessToken({ prompt });
 }
