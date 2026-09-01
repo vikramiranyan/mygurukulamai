@@ -1,4 +1,3 @@
-import { clearLatestGoogleCredential } from '../auth/googleAuth';
 import { createDriveTokenClient, requestDriveAccess, type DriveTokenClient } from './googleDriveAuth';
 import { loadChildrenFromDrive, removeChildFromDrive, saveChildToDrive, type DriveChildRecord } from './driveChildStore';
 import { loadChildTimetable, saveChildTimetable, updateChildSubjects, type ChildTimetableRecord } from './driveTimetableStore';
@@ -176,8 +175,6 @@ export class DriveSyncController {
     try {
       parsed = JSON.parse(localStorage.getItem(localKey) || '[]');
     } catch {
-      // Preserve the original value when it cannot be parsed. It may contain
-      // recoverable data and must never be silently destroyed during migration.
       onError(new Error('Local child data could not be read; migration was skipped.'));
       return;
     }
@@ -200,8 +197,6 @@ export class DriveSyncController {
     }
 
     if (!meaningful.length) {
-      // Keep malformed/unrecognized records instead of treating them as safe
-      // to delete. A future migration version can recover them.
       if (unMigratable.length) {
         localStorage.setItem(localKey, JSON.stringify(unMigratable));
       } else {
@@ -215,9 +210,6 @@ export class DriveSyncController {
       const remote = await loadChildrenFromDrive(this.token);
       const remoteIds = new Set(remote.map(child => child.id));
 
-      // Reconcile by child ID. Existing Drive records remain authoritative;
-      // local records missing from Drive are uploaded. Nothing is discarded
-      // until every meaningful local record is known to exist remotely.
       for (const child of meaningful) {
         if (!remoteIds.has(child.id)) {
           await saveChildToDrive(this.token, child);
@@ -225,9 +217,6 @@ export class DriveSyncController {
         }
       }
 
-      // Only remove records that were successfully reconciled. Preserve any
-      // unrecognized local entries so a migration cannot destroy data it did
-      // not understand.
       if (unMigratable.length) {
         localStorage.setItem(localKey, JSON.stringify(unMigratable));
       } else {
@@ -236,8 +225,6 @@ export class DriveSyncController {
       }
       sessionStorage.setItem(`gurukulam-drive-local-migration-done:${userId}`, '1');
     } catch (error) {
-      // Keep the local copy when reconciliation fails. This makes migration
-      // retryable and prevents partial Drive/network failures from losing data.
       onError(error);
     }
   }
@@ -250,6 +237,5 @@ export class DriveSyncController {
     this.waitingForToken = null;
     this.resolveToken = null;
     this.rejectToken = null;
-    clearLatestGoogleCredential();
   }
 }
