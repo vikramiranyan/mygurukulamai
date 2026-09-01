@@ -5,18 +5,27 @@ import { generateTeachingPlan } from '../aiTutor/teachingPlan';
 import { checkTutorInput } from '../aiTutor/tutorSafety';
 import { nextPhase, scoreAnswers, startSession, type AnswerRecord, type LearningSession } from '../core/learningSession';
 import type { Child } from '../types/parent';
-import type { ChapterRecord, ChildWorkspace } from '../learningWorkspace';
+import type { ChapterPage, ChapterRecord, ChildWorkspace } from '../learningWorkspace';
 
 type Props = { child: Child; onParents: () => void; signout: () => void; workspace?: ChildWorkspace };
 const starterSubjects = Object.keys(starterCurriculum) as Subject[];
 const emptyWorkspace: ChildWorkspace = { teachers: [], subjects: [], chapters: [], tests: [], today: [], homework: [] };
 
-function fallbackChapters(subject: string): Chapter[] { return starterSubjects.includes(subject as Subject) ? starterCurriculum[subject as Subject] : []; }
-function teacherNameFor(subject: string, workspace: ChildWorkspace): string { return workspace.teachers.find(t => t.subjects.includes(subject) && t.enabled)?.name || workspace.teachers.find(t => t.enabled)?.name || 'Your AI Teacher'; }
-
+function fallbackChapters(subject: string): Chapter[] {
+  return starterSubjects.includes(subject as Subject) ? starterCurriculum[subject as Subject] : [];
+}
+function teacherNameFor(subject: string, workspace: ChildWorkspace): string {
+  return workspace.teachers.find(t => t.subjects.includes(subject) && t.enabled)?.name || workspace.teachers.find(t => t.enabled)?.name || 'Your AI Teacher';
+}
+function isUploadedChapter(chapter: ChapterRecord | Chapter): chapter is ChapterRecord {
+  return 'fileName' in chapter && Array.isArray(chapter.pages) && (chapter.pages.length === 0 || typeof chapter.pages[0] !== 'number');
+}
+function uploadedPages(chapter: ChapterRecord | Chapter): ChapterPage[] {
+  return isUploadedChapter(chapter) ? chapter.pages : [];
+}
 function chapterLesson(chapter: ChapterRecord | Chapter, targetPages?: number[]): LessonContent {
   const base = getLessonContent(chapter.id, chapter.title);
-  const pages = 'pages' in chapter && Array.isArray(chapter.pages) && chapter.pages.length && typeof chapter.pages[0] !== 'number' ? chapter.pages : [];
+  const pages = uploadedPages(chapter);
   if (!pages.length) return base;
   const selected = targetPages?.length ? pages.filter(page => targetPages.includes(page.number)) : pages;
   const excerpts = selected.map(page => page.text).filter(Boolean).slice(0, 4);
@@ -44,11 +53,29 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
   const plan = useMemo(() => generateTeachingPlan({ subject, chapter: chapter?.title || 'Next lesson', concepts: [chapter?.title || 'Next lesson'], profile: { mastery: session?.masteryScore ? session.masteryScore / 100 : 0 } }), [subject, chapter, session?.masteryScore]);
   const teacherName = teacherNameFor(subject, workspace);
 
-  const resetForSubject = (nextSubject: string) => { const nextCustom = workspace.chapters.filter(item => item.subject === nextSubject); const nextFallback = fallbackChapters(nextSubject); setSubject(nextSubject); setChapterId((nextCustom[0] || nextFallback[0])?.id || ''); setSession(null); setAnswers([]); setFeedback(''); setCheckIndex(0); setStudentAnswer(''); };
-  const resetChapter = (nextChapter: ChapterRecord | Chapter) => { setChapterId(nextChapter.id); setSession(null); setAnswers([]); setFeedback(''); setCheckIndex(0); setStudentAnswer(''); };
+  const resetForSubject = (nextSubject: string) => {
+    const nextCustom = workspace.chapters.filter(item => item.subject === nextSubject);
+    const nextFallback = fallbackChapters(nextSubject);
+    setSubject(nextSubject); setChapterId((nextCustom[0] || nextFallback[0])?.id || ''); setSession(null); setAnswers([]); setFeedback(''); setCheckIndex(0); setStudentAnswer('');
+  };
+  const resetChapter = (nextChapter: ChapterRecord | Chapter) => {
+    setChapterId(nextChapter.id); setSession(null); setAnswers([]); setFeedback(''); setCheckIndex(0); setStudentAnswer('');
+  };
   const begin = () => { if (!chapter) return; setSession(startSession(child.id, subject, chapter.id)); setAnswers([]); setCheckIndex(0); setStudentAnswer(''); setFeedback(''); };
-  const askTutor = () => { const decision = checkTutorInput(question); if (!decision.allowed) { setFeedback(decision.reason || 'I cannot help with that request.'); return; } setFeedback(question.trim() ? `${teacherName} says: Let's explore “${question.trim()}” using ${chapter?.title || 'this lesson'}. ${currentTarget ? `Today's parent-selected target is ${currentTarget.topic}.` : 'Start with the lesson explanation, then try the examples and checks.'}` : 'Ask me something about this lesson.'); };
-  const submitAnswer = () => { const check = lesson.checks[checkIndex]; if (!check) return; const correct = gradeAnswer(studentAnswer, check.expected); const nextAnswers = [...answers, { questionId: check.id, correct }]; const score = scoreAnswers(nextAnswers); const phase = nextPhase(score); setAnswers(nextAnswers); setSession({ ...(session || startSession(child.id, subject, chapter?.id || 'lesson')), phase, answers: nextAnswers, masteryScore: score }); setFeedback(correct ? `Correct! Your current mastery is ${score}%.` : `Not quite. ${plan.mode === 'reteach' ? 'Let’s revisit the explanation and try again.' : 'Let’s use another example and try again.'}`); setStudentAnswer(''); if (checkIndex < lesson.checks.length - 1) setCheckIndex(checkIndex + 1); };
+  const askTutor = () => {
+    const decision = checkTutorInput(question);
+    if (!decision.allowed) { setFeedback(decision.reason || 'I cannot help with that request.'); return; }
+    setFeedback(question.trim() ? `${teacherName} says: Let's explore “${question.trim()}” using ${chapter?.title || 'this lesson'}. ${currentTarget ? `Today's parent-selected target is ${currentTarget.topic}.` : 'Start with the lesson explanation, then try the examples and checks.'}` : 'Ask me something about this lesson.');
+  };
+  const submitAnswer = () => {
+    const check = lesson.checks[checkIndex]; if (!check) return;
+    const correct = gradeAnswer(studentAnswer, check.expected);
+    const nextAnswers = [...answers, { questionId: check.id, correct }];
+    const score = scoreAnswers(nextAnswers); const phase = nextPhase(score);
+    setAnswers(nextAnswers); setSession({ ...(session || startSession(child.id, subject, chapter?.id || 'lesson')), phase, answers: nextAnswers, masteryScore: score });
+    setFeedback(correct ? `Correct! Your current mastery is ${score}%.` : `Not quite. ${plan.mode === 'reteach' ? 'Let’s revisit the explanation and try again.' : 'Let’s use another example and try again.'}`);
+    setStudentAnswer(''); if (checkIndex < lesson.checks.length - 1) setCheckIndex(checkIndex + 1);
+  };
 
   return <div className="app dashboard-app" style={{ minHeight: '100vh' }}>
     <header><div className="gurukulam-brand"><div className="brand"><strong>Gurukulam AI</strong><small>Personal AI Teacher</small></div></div><div className="dashboard-actions"><button className="parent-access" onClick={onParents}>👨‍👩‍👧 Parent Dashboard</button><button className="dashboard-signout" onClick={signout}>⇥ Sign out</button></div></header>
@@ -59,8 +86,8 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
       <section className="panel" style={{ marginBottom: 20 }}><h2>📝 Tests & Exams</h2>{workspace.tests.length ? <div style={{ display: 'grid', gap: 8 }}>{workspace.tests.map(item => <div key={item.id} style={{ padding: 12, borderRadius: 10, background: 'var(--panel-soft, #f6f6f6)' }}><strong>{item.title}</strong><div>{item.type} · {item.subject} · {item.date}</div><small>{item.topics}</small></div>)}</div> : <p>No upcoming tests have been scheduled.</p>}</section>
       <section className="panel" style={{ marginBottom: 20 }}><h2>👨‍🏫 My Teachers</h2>{workspace.teachers.length ? workspace.teachers.filter(t => t.enabled).map(t => <div key={t.id} style={{ padding: 10 }}><strong>{t.name}</strong> · {t.subjects.join(', ') || 'All configured subjects'}<br /><small>{t.role} · {t.style}</small></div>) : <p>Your parent has not configured teacher details yet.</p>}</section>
       <section className="panel" style={{ marginBottom: 20 }}><h2>📚 Choose a subject</h2><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{availableSubjects.map(item => <button key={item} className={subject === item ? 'primary' : 'secondary'} onClick={() => resetForSubject(item)}>{item}</button>)}</div></section>
-      <section className="panel" style={{ marginBottom: 20 }}><h2>Choose a chapter</h2>{chapters.length ? <div style={{ display: 'grid', gap: 10 }}>{chapters.map(item => <button key={item.id} className={chapter?.id === item.id ? 'selected' : ''} style={{ textAlign: 'left', padding: 14 }} onClick={() => resetChapter(item)}><strong>{item.title}</strong><br /><small>{'pages' in item && Array.isArray(item.pages) && item.pages.length && typeof item.pages[0] !== 'number' ? `${item.pages.length} pages · Parent uploaded` : 'teacher' in item ? `Teacher: ${item.teacher}` : 'Parent uploaded chapter'}</small></button>)}</div> : <p>No chapter has been uploaded for {subject} yet. Your parent can add it from Parent Dashboard → Subjects.</p>}</section>
-      {chapter && <section className="panel" style={{ marginBottom: 20 }}><h2>Lesson: {lesson.title}</h2>{currentTarget && <div className="tt-notice"><strong>Parent-selected teaching target:</strong> {currentTarget.topic}</div>}<p><strong>Today's goal:</strong> {lesson.objective}</p><p>{lesson.explanation}</p><h3>Examples / Source pages</h3><ul>{lesson.examples.map((example, index) => <li key={`${index}-${example}`}>{example}</li>)}</ul>{!session ? <button className="primary" onClick={begin}>▶ Start Lesson</button> : <><div style={{ padding: 14, borderRadius: 12, background: 'var(--panel-soft, #f6f6f6)', marginBottom: 14 }}><strong>{plan.mode.toUpperCase()}</strong><p>{plan.steps.join(' → ')}</p><p>Mastery: <strong>{session.masteryScore}%</strong></p></div><h3>Understanding check</h3>{lesson.checks[checkIndex] ? <><p>{lesson.checks[checkIndex].prompt}</p><div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><input value={studentAnswer} onChange={e => setStudentAnswer(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submitAnswer(); }} placeholder="Type your answer" aria-label="Your answer"/><button className="primary" disabled={!studentAnswer.trim()} onClick={submitAnswer}>Check Answer</button></div></> : <p>🎉 You completed this lesson's checks. Final mastery: <strong>{session.masteryScore}%</strong>.</p>}{feedback && <div className="tt-notice" role="status" style={{ marginTop: 14 }}>{feedback}</div>}</>}</section>}
+      <section className="panel" style={{ marginBottom: 20 }}><h2>Choose a chapter</h2>{chapters.length ? <div style={{ display: 'grid', gap: 10 }}>{chapters.map(item => { const uploaded = isUploadedChapter(item); return <button key={item.id} className={chapter?.id === item.id ? 'selected' : ''} style={{ textAlign: 'left', padding: 14 }} onClick={() => resetChapter(item)}><strong>{item.title}</strong><br /><small>{uploaded ? `${item.pages.length} pages · Parent uploaded` : `Teacher: ${item.teacher}`}</small></button>; })}</div> : <p>No chapter has been uploaded for {subject} yet. Your parent can add it from Parent Dashboard → Subjects.</p>}</section>
+      {chapter && <section className="panel" style={{ marginBottom: 20 }}><h2>Lesson: {lesson.title}</h2>{currentTarget && <div className="tt-notice"><strong>Parent-selected teaching target:</strong> {currentTarget.topic}{currentTarget.scope === 'pages' && currentTarget.pageNumbers?.length ? ` · Pages ${currentTarget.pageNumbers.join(', ')}` : ''}</div>}<p><strong>Today's goal:</strong> {lesson.objective}</p><p>{lesson.explanation}</p><h3>Examples / Source pages</h3><ul>{lesson.examples.map((example, index) => <li key={`${index}-${example}`}>{example}</li>)}</ul>{!session ? <button className="primary" onClick={begin}>▶ Start Lesson</button> : <><div style={{ padding: 14, borderRadius: 12, background: 'var(--panel-soft, #f6f6f6)', marginBottom: 14 }}><strong>{plan.mode.toUpperCase()}</strong><p>{plan.steps.join(' → ')}</p><p>Mastery: <strong>{session.masteryScore}%</strong></p></div><h3>Understanding check</h3>{lesson.checks[checkIndex] ? <><p>{lesson.checks[checkIndex].prompt}</p><div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><input value={studentAnswer} onChange={e => setStudentAnswer(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submitAnswer(); }} placeholder="Type your answer" aria-label="Your answer"/><button className="primary" disabled={!studentAnswer.trim()} onClick={submitAnswer}>Check Answer</button></div></> : <p>🎉 You completed this lesson's checks. Final mastery: <strong>{session.masteryScore}%</strong>.</p>}{feedback && <div className="tt-notice" role="status" style={{ marginTop: 14 }}>{feedback}</div>}</>}</section>}
       <section className="panel"><h2>💬 Ask your AI teacher</h2><p>Questions are checked for age-appropriate safety before being answered.</p><div style={{ display: 'flex', gap: 10 }}><input value={question} onChange={e => setQuestion(e.target.value)} placeholder={`Ask about ${chapter?.title || subject}`} onKeyDown={e => { if (e.key === 'Enter') askTutor(); }}/><button className="primary" onClick={askTutor}>Ask</button></div>{feedback && !session && <div className="tt-notice" role="status" style={{ marginTop: 14 }}>{feedback}</div>}</section>
     </main><footer>Gurukulam AI · Parent-controlled learning environment</footer>
   </div>;
