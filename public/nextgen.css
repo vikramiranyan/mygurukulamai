@@ -3,7 +3,7 @@
 button,input,select{font:inherit}
 button{touch-action:manipulation}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid rgba(215,169,46,.55);outline-offset:3px}
-.login-art-card,.panel,.hero,.teacher-card{transform-style:preserve-3d;backface-visibility:hidden}
+.login-art-card,.panel,.hero,.teacher-card,.teacher-presence{transform-style:preserve-3d;backface-visibility:hidden}
 .login-art-card{perspective:1000px;animation:gkFloat 7s ease-in-out infinite}
 .login-art-card img{transform:translateZ(18px);animation:gkTeacherFloat 6s ease-in-out infinite;will-change:transform}
 .login-art-card:before{content:'✦';position:absolute;z-index:3;top:12%;left:9%;font-size:20px;color:#d7a92e;animation:gkSpark 2.8s ease-in-out infinite}
@@ -20,12 +20,25 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .dashboard-app main>.panel:nth-child(3){animation:gkReveal .55s .1s ease both}
 .dashboard-app main>.panel:nth-child(4){animation:gkReveal .55s .15s ease both}
 .dashboard-app main>.panel:nth-child(n+5){animation:gkReveal .55s .2s ease both}
+.teacher-presence{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px!important;overflow:hidden;position:relative}
+.teacher-presence:after{content:'';position:absolute;width:180px;height:180px;border-radius:50%;right:-60px;top:-80px;background:radial-gradient(circle,rgba(215,169,46,.18),transparent 68%);pointer-events:none}
+.teacher-presence-copy{position:relative;z-index:1}
+.teacher-orb{position:relative;z-index:1;width:132px;min-width:132px;aspect-ratio:1;border-radius:34px;display:grid;place-items:center;align-content:center;gap:3px;background:linear-gradient(145deg,#fffdf7,#efe5d4);border:1px solid #e1d6c5;box-shadow:0 18px 34px rgba(39,48,40,.13),inset 0 1px 0 #fff;transform:perspective(700px) rotateX(3deg) rotateY(-6deg);animation:teacherBob 4.8s ease-in-out infinite}
+.teacher-orb:before{content:'';position:absolute;inset:8px;border-radius:28px;border:1px solid rgba(23,61,52,.08);box-shadow:inset 0 0 25px rgba(255,255,255,.65)}
+.teacher-orb-face{font-size:52px;line-height:1;filter:drop-shadow(0 6px 8px rgba(23,61,52,.14));transform:translateZ(22px)}
+.teacher-orb span{font-size:11px;font-weight:800;color:#49635b;position:relative;z-index:2}
+.teacher-orb.is-listening{animation:teacherListen 1.25s ease-in-out infinite}
+.teacher-orb.is-speaking{animation:teacherSpeak .75s ease-in-out infinite}
+.voice-status{display:block;width:100%;color:#718078;margin-top:9px;line-height:1.45}
 .login-google-button:active{transform:scale(.985)!important}
 @keyframes gkFloat{0%,100%{transform:translateY(0) rotateX(0deg)}50%{transform:translateY(-5px) rotateX(.7deg)}}
 @keyframes gkTeacherFloat{0%,100%{transform:translateZ(18px) translateY(0)}50%{transform:translateZ(28px) translateY(-6px)}}
 @keyframes gkSpark{0%,100%{opacity:.35;transform:scale(.9) rotate(0)}50%{opacity:1;transform:scale(1.18) rotate(18deg)}}
 @keyframes gkShadow{0%,100%{transform:scale(1);opacity:.12}50%{transform:scale(.92);opacity:.08}}
 @keyframes gkReveal{from{opacity:0;transform:translateY(10px) translateZ(-10px)}to{opacity:1;transform:translateY(0) translateZ(0)}}
-@media(max-width:900px){.login-art-card{animation-duration:8s}.login-art-card img{animation-duration:7s}.dashboard-app main{padding:16px!important}.dashboard-app .panel{border-radius:18px}}
-@media(max-width:560px){.login-art-card img{transform:translateZ(10px)}.dashboard-app main>.panel{margin-bottom:14px!important}.dashboard-app input,.dashboard-app button{min-height:46px}}
+@keyframes teacherBob{0%,100%{transform:perspective(700px) rotateX(3deg) rotateY(-6deg) translateY(0)}50%{transform:perspective(700px) rotateX(5deg) rotateY(5deg) translateY(-5px)}}
+@keyframes teacherListen{0%,100%{transform:perspective(700px) scale(1) rotateY(-5deg)}50%{transform:perspective(700px) scale(1.04) rotateY(5deg)}}
+@keyframes teacherSpeak{0%,100%{transform:perspective(700px) scale(1) rotateX(2deg)}50%{transform:perspective(700px) scale(1.055) rotateX(-2deg)}}
+@media(max-width:900px){.login-art-card{animation-duration:8s}.login-art-card img{animation-duration:7s}.dashboard-app main{padding:16px!important}.dashboard-app .panel{border-radius:18px}.teacher-presence{align-items:flex-start}.teacher-orb{width:112px;min-width:112px;border-radius:28px}.teacher-orb-face{font-size:44px}}
+@media(max-width:560px){.login-art-card img{transform:translateZ(10px)}.dashboard-app main>.panel{margin-bottom:14px!important}.dashboard-app input,.dashboard-app button{min-height:46px}.teacher-presence{gap:12px;padding:18px!important}.teacher-orb{width:94px;min-width:94px}.teacher-orb-face{font-size:36px}.teacher-orb span{font-size:9px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}}
