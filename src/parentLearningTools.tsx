@@ -18,11 +18,36 @@ async function extractPdfPages(file: File): Promise<ChapterPage[]> {
   return pages;
 }
 
+
+async function createOcrImage(file: File): Promise<HTMLCanvasElement> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(2, 2200 / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) throw new Error('Image processing is unavailable in this browser.');
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+  const image = ctx.getImageData(0, 0, width, height);
+  for (let i = 0; i < image.data.length; i += 4) {
+    const gray = Math.round(0.299 * image.data[i] + 0.587 * image.data[i + 1] + 0.114 * image.data[i + 2]);
+    const value = gray > 180 ? 255 : 0;
+    image.data[i] = value; image.data[i + 1] = value; image.data[i + 2] = value;
+  }
+  ctx.putImageData(image, 0, 0);
+  return canvas;
+}
+
 async function extractChapterPages(file: File): Promise<ChapterPage[]> {
   if (file.name.toLowerCase().endsWith('.pdf')) return extractPdfPages(file);
   const mod = await import('tesseract.js');
-  const result = await mod.recognize(file, 'eng');
-  return [{ number: 1, text: result.data.text.replace(/\s+/g, ' ').trim().slice(0, 6000) }];
+  const image = await createOcrImage(file);
+  const result = await (mod.recognize as any)(image, 'eng', { tessedit_pageseg_mode: 11 });
+  const text = String(result.data.text || '').replace(/\s+/g, ' ').trim();
+  if (!text) throw new Error('No readable text detected in this image. Try a clearer image with good contrast.');
+  return [{ number: 1, text: text.slice(0, 6000) }];
 }
 
 function chapterFor(workspace: ChildWorkspace, subject: string, chapterId?: string): ChapterRecord | undefined {
@@ -63,6 +88,24 @@ export function ParentLearningTools({ mode, children, active, setActive, workspa
     setText(''); setNotice(`${teacher.name} is now assigned to ${assignedSubject}.`);
   };
 
+  const modifyTeacher = (teacher: TeacherProfile) => {
+    const name = window.prompt('Teacher name', teacher.name)?.trim();
+    if (!name) return;
+    const rawSubjects = window.prompt('Subjects (comma-separated)', teacher.subjects.join(', '));
+    if (rawSubjects === null) return;
+    const subjects = [...new Set(rawSubjects.split(',').map(value => value.trim()).filter(Boolean))];
+    if (!subjects.length) { setNotice('Assign at least one subject to the teacher.'); return; }
+    if (workspace.teachers.some(t => t.id !== teacher.id && t.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase())) { setNotice('A teacher with that name already exists.'); return; }
+    setWorkspace({ ...workspace, teachers: workspace.teachers.map(t => t.id === teacher.id ? { ...t, name, subjects } : t) });
+    setNotice(`${name} was updated successfully.`);
+  };
+
+  const deleteTeacher = (teacher: TeacherProfile) => {
+    if (!window.confirm(`Delete teacher “${teacher.name}” from this child's learning setup?`)) return;
+    setWorkspace({ ...workspace, teachers: workspace.teachers.filter(t => t.id !== teacher.id) });
+    setNotice(`Teacher “${teacher.name}” deleted.`);
+  };
+
   const uploadChapter = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.target.value = ''; if (!file) return;
     if (!subject) { setNotice('Select a subject before uploading a chapter.'); return; }
@@ -81,7 +124,7 @@ export function ParentLearningTools({ mode, children, active, setActive, workspa
 
   return <section className="parent-section"><div className="section-heading"><div><small>PARENT CONTROL</small><h1>{mode === 'teachers' ? '👨‍🏫 Teacher Details' : mode === 'subjects' ? '📚 Subjects & Chapters' : mode === 'tests' ? '📝 Test / Exam' : mode === 'teaching' ? "📖 Today's Teaching" : "🏠 Kid's Homework"}</h1><p>Configure learning for <strong>{child.name}</strong>. Changes apply only to this child.</p></div>{selectChild}</div>{notice && <div className="tt-notice" role="status">{notice}</div>}
 
-    {mode === 'teachers' && <><div className="panel"><h2>Create / assign a teacher</h2><p>Teachers are never pre-created. Create a teacher and explicitly assign one or more existing subjects.</p><div className="subject-add-row"><input value={text} onChange={e => setText(e.target.value)} placeholder="Teacher name"/><select value={subject} onChange={e => setSubject(e.target.value)}><option value="">Select subject</option>{workspace.subjects.map(s => <option key={s}>{s}</option>)}</select><button className="primary" onClick={saveTeacher}>Save Teacher</button></div></div><div className="child-list">{workspace.teachers.map(t => <article className="child-row" key={t.id}><div><h3>👨‍🏫 {t.name}</h3><p>{t.role} · {t.subjects.join(', ') || 'No subjects assigned'}</p><span className="child-school">{t.style}</span></div><button className={t.enabled ? 'secondary' : 'primary'} onClick={() => setWorkspace({ ...workspace, teachers: workspace.teachers.map(x => x.id === t.id ? { ...x, enabled: !x.enabled } : x) })}>{t.enabled ? 'Enabled' : 'Enable'}</button></article>)}{!workspace.teachers.length && <div className="coming-section panel"><h2>No teachers created</h2><p>Create a teacher here and explicitly assign the subjects they teach.</p></div>}</div></>}
+    {mode === 'teachers' && <><div className="panel"><h2>Create / assign a teacher</h2><p>Teachers are never pre-created. Create a teacher and explicitly assign one or more existing subjects.</p><div className="subject-add-row"><input value={text} onChange={e => setText(e.target.value)} placeholder="Teacher name"/><select value={subject} onChange={e => setSubject(e.target.value)}><option value="">Select subject</option>{workspace.subjects.map(s => <option key={s}>{s}</option>)}</select><button className="primary" onClick={saveTeacher}>Save Teacher</button></div></div><div className="child-list">{workspace.teachers.map(t => <article className="child-row" key={t.id}><div><h3>👨‍🏫 {t.name}</h3><p>{t.role} · {t.subjects.join(', ') || 'No subjects assigned'}</p><span className="child-school">{t.style}</span></div><div className="row-actions"><button className="secondary" onClick={() => modifyTeacher(t)}>✎ Modify</button><button className="danger" onClick={() => deleteTeacher(t)}>Delete</button><button className={t.enabled ? 'secondary' : 'primary'} onClick={() => setWorkspace({ ...workspace, teachers: workspace.teachers.map(x => x.id === t.id ? { ...x, enabled: !x.enabled } : x) })}>{t.enabled ? 'Enabled' : 'Enable'}</button></div></article>)}{!workspace.teachers.length && <div className="coming-section panel"><h2>No teachers created</h2><p>Create a teacher here and explicitly assign the subjects they teach.</p></div>}</div></>}
 
     {mode === 'subjects' && <div className="subject-list">{workspace.subjects.map(value => <article className="panel" key={value} style={{ marginBottom: 14 }}><div className="section-heading"><div><h2>📘 {value}</h2><p>{workspace.chapters.filter(chapter => chapter.subject === value).length} chapter(s) · Subjects are maintained in Time Table / Subjects.</p></div></div><div className="subject-add-row"><label className="upload-button">{busy ? 'Reading…' : '＋ Upload Chapter'}<input type="file" accept=".pdf,.png,.jpg,.jpeg" disabled={busy} onChange={uploadChapter}/></label></div>{workspace.chapters.filter(chapter => chapter.subject === value).map(chapter => <details key={chapter.id} className="subject-row" open={chapter.id === chapterId}><summary><strong>📖 {chapter.title}</strong><span>{chapter.pages.length} pages · {chapter.fileName}</span></summary><div style={{ display: 'grid', gap: 8, marginTop: 12 }}>{chapter.pages.map(page => <div key={page.number} className="panel" style={{ padding: 12, background: 'var(--panel-soft, #f6f6f6)' }}><strong>Page {page.number}</strong><p style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{page.text || 'No readable text detected on this page.'}</p></div>)}<button className="danger" onClick={() => deleteChapter(chapter)}>Delete Chapter</button></div></details>)}{!workspace.chapters.some(chapter => chapter.subject === value) && <p>No chapters uploaded yet. Upload the textbook chapter PDF/image for this subject.</p>}</article>)}{!workspace.subjects.length && <div className="coming-section panel"><h2>No subjects yet</h2><p>Add subjects under Time Table / Subjects. If no timetable exists, subjects can be created there manually.</p></div>}</div>}
 
