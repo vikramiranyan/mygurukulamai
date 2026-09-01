@@ -1,4 +1,4 @@
-import { createDriveTokenClient, requestDriveAccess, type DriveTokenClient } from './googleDriveAuth';
+import { createDriveTokenClient, requestDriveAccess, type DrivePrompt, type DriveTokenClient } from './googleDriveAuth';
 import { loadChildrenFromDrive, removeChildFromDrive, saveChildToDrive, type DriveChildRecord } from './driveChildStore';
 import { loadChildTimetable, saveChildTimetable, updateChildSubjects, type ChildTimetableRecord } from './driveTimetableStore';
 import { loadLearningWorkspace, removeLearningWorkspace, saveLearningWorkspace } from './driveLearningWorkspaceStore';
@@ -6,7 +6,13 @@ import { DriveApiError, probeDriveAccess } from './googleDrive';
 import { normalizeWorkspace, type ChildWorkspace } from '../learningWorkspace';
 
 const SESSION_KEY = 'gurukulam-auth-session';
+const DRIVE_GRANT_PREFIX = 'gurukulam-drive-grant:';
 function readJson<T>(key: string, fallback: T): T { try { return JSON.parse(sessionStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; } }
+function currentUserId(): string { return readJson<{ user?: { id?: string } }>(SESSION_KEY, {}).user?.id || ''; }
+function driveGrantKey(userId: string): string { return `${DRIVE_GRANT_PREFIX}${encodeURIComponent(userId)}`; }
+function hasKnownDriveGrant(userId: string): boolean { try { return Boolean(userId && localStorage.getItem(driveGrantKey(userId)) === '1'); } catch { return false; } }
+function rememberDriveGrant(userId: string): void { try { if (userId) localStorage.setItem(driveGrantKey(userId), '1'); } catch { /* storage may be unavailable */ } }
+function forgetDriveGrant(userId: string): void { try { if (userId) localStorage.removeItem(driveGrantKey(userId)); } catch { /* storage may be unavailable */ } }
 function installNavigationDriveCheck(controller: DriveSyncController): void {
   if (typeof document === 'undefined') return;
   if (document.documentElement.dataset.gurukulamDriveNavigationCheck === 'true') return;
@@ -19,17 +25,29 @@ export class DriveSyncController {
   constructor() { installNavigationDriveCheck(this); }
   configure(clientId: string, onToken: (token: string) => void, onError: (error: unknown) => void): boolean {
     this.rejectToken?.(new Error('Google Drive session changed')); this.configurationVersion += 1; const version = this.configurationVersion; this.token = ''; this.waitingForToken = null; this.resolveToken = null; this.rejectToken = null;
-    this.client = createDriveTokenClient(clientId, token => { if (version !== this.configurationVersion) return; void probeDriveAccess(token).then(async () => { if (version !== this.configurationVersion) return; this.token = token; await this.migrateLocalChildren(onError); if (version !== this.configurationVersion) return; this.resolveToken?.(token); this.resolveToken = null; this.rejectToken = null; this.waitingForToken = null; onToken(token); }).catch(error => { if (version !== this.configurationVersion) return; this.token = ''; this.resolveToken = null; this.rejectToken?.(error); this.rejectToken = null; this.waitingForToken = null; onError(error); }); }, error => { if (version !== this.configurationVersion) return; this.token = ''; this.resolveToken = null; this.rejectToken?.(error); this.rejectToken = null; this.waitingForToken = null; onError(error); });
+    this.client = createDriveTokenClient(clientId, token => { if (version !== this.configurationVersion) return; void probeDriveAccess(token).then(async () => { if (version !== this.configurationVersion) return; this.token = token; rememberDriveGrant(currentUserId()); await this.migrateLocalChildren(onError); if (version !== this.configurationVersion) return; this.resolveToken?.(token); this.resolveToken = null; this.rejectToken = null; this.waitingForToken = null; onToken(token); }).catch(error => { if (version !== this.configurationVersion) return; this.token = ''; this.resolveToken = null; this.rejectToken?.(error); this.rejectToken = null; this.waitingForToken = null; onError(error); }); }, error => { if (version !== this.configurationVersion) return; this.token = ''; this.resolveToken = null; this.rejectToken?.(error); this.rejectToken = null; this.waitingForToken = null; onError(error); });
     return Boolean(this.client);
   }
-  authorize(): void { if (!this.client) throw new Error('Google Drive authorization is not ready'); requestDriveAccess(this.client, ''); }
+  authorize(): void {
+    if (!this.client) throw new Error('Google Drive authorization is not ready');
+    const userId = currentUserId();
+    // First connection asks for consent. Once Google has granted drive.file to
+    // this user, future sessions silently refresh the token without showing the
+    // consent dialog again.
+    requestDriveAccess(this.client, hasKnownDriveGrant(userId) ? 'none' : 'consent');
+  }
   async ensureConnection(): Promise<boolean> { try { await this.requireToken(); return true; } catch { return false; } }
   get authorized(): boolean { return Boolean(this.token); }
   get configured(): boolean { return Boolean(this.client); }
+  private async requestTokenForCurrentGrant(): Promise<string> {
+    const userId = currentUserId();
+    const prompt: DrivePrompt = hasKnownDriveGrant(userId) ? 'none' : 'consent';
+    return new Promise<string>((resolve, reject) => { this.resolveToken = resolve; this.rejectToken = reject; try { requestDriveAccess(this.client!, prompt); } catch (error) { reject(error); } });
+  }
   private async requireToken(): Promise<string> {
     if (!this.client) throw new Error('Google Drive authorization is not ready');
     if (this.token) { try { await probeDriveAccess(this.token); return this.token; } catch (error) { if (error instanceof DriveApiError && (error.status === 401 || error.status === 403)) this.token = ''; else throw error; } }
-    if (!this.waitingForToken) this.waitingForToken = new Promise<string>((resolve, reject) => { this.resolveToken = resolve; this.rejectToken = reject; try { requestDriveAccess(this.client!, ''); } catch (error) { reject(error); } }).finally(() => { this.waitingForToken = null; });
+    if (!this.waitingForToken) this.waitingForToken = this.requestTokenForCurrentGrant().finally(() => { this.waitingForToken = null; });
     return this.waitingForToken;
   }
   async loadChildren(): Promise<DriveChildRecord[]> { return loadChildrenFromDrive(await this.requireToken()); }
@@ -57,4 +75,5 @@ export class DriveSyncController {
     try { const remote = await loadChildrenFromDrive(this.token); const remoteIds = new Set(remote.map(child => child.id)); for (const child of meaningful) if (!remoteIds.has(child.id)) { await saveChildToDrive(this.token, child); remoteIds.add(child.id); } if (unMigratable.length) localStorage.setItem(localKey, JSON.stringify(unMigratable)); else { localStorage.removeItem(localKey); localStorage.removeItem(`gurukulam:${encodeURIComponent(userId)}:active-child`); } sessionStorage.setItem(`gurukulam-drive-local-migration-done:${userId}`, '1'); } catch (error) { onError(error); }
   }
   reset(): void { this.rejectToken?.(new Error('Google Drive session ended')); this.configurationVersion += 1; this.token = ''; this.client = null; this.waitingForToken = null; this.resolveToken = null; this.rejectToken = null; }
+  revokeKnownGrant(): void { forgetDriveGrant(currentUserId()); }
 }
