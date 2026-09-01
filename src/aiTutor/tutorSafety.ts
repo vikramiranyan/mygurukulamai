@@ -24,9 +24,10 @@ export function normalizeTutorInput(input: string): string {
 }
 
 export function checkTutorInput(input: string): SafetyDecision {
-  const normalized = normalizeTutorInput(input);
-  if (!normalized) return { allowed: false, reason: 'Please ask a learning question.', normalized };
-  if (normalized.length > MAX_INPUT_LENGTH) return { allowed: false, reason: 'That question is a little too long. Please ask it in a shorter way.', normalized };
+  const raw = String(input ?? '').replace(controlCharacters, ' ').trim();
+  if (!raw) return { allowed: false, reason: 'Please ask a learning question.', normalized: '' };
+  if (raw.length > MAX_INPUT_LENGTH) return { allowed: false, reason: 'That question is a little too long. Please ask it in a shorter way.', normalized: raw.slice(0, MAX_INPUT_LENGTH) };
+  const normalized = normalizeTutorInput(raw);
   if (blockedPatterns.some(pattern => pattern.test(normalized))) {
     return { allowed: false, reason: 'Request is outside the age-appropriate tutor scope.', normalized };
   }
