@@ -1,5 +1,5 @@
-const CACHE='gurukulam-ai-v6';
-const APP_SHELL=['./','./index.html','./manifest.webmanifest','./icons/icon.svg','./sw-register.js','./nextgen.css'];
+const CACHE='gurukulam-ai-v7';
+const APP_SHELL=['./','./index.html','./manifest.webmanifest','./icons/icon.svg','./sw-register.js','./nextgen.css','./legal-links.js','./privacy.html','./terms.html'];
 
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(APP_SHELL)).then(()=>self.skipWaiting()));
