@@ -1,0 +1,31 @@
+/* Gurukulam AI visual polish: lightweight 3D motion, safe by default. */
+:root{--gk-shadow:0 18px 55px rgba(23,61,52,.12);--gk-radius:22px}
+button,input,select{font:inherit}
+button{touch-action:manipulation}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid rgba(215,169,46,.55);outline-offset:3px}
+.login-art-card,.panel,.hero,.teacher-card{transform-style:preserve-3d;backface-visibility:hidden}
+.login-art-card{perspective:1000px;animation:gkFloat 7s ease-in-out infinite}
+.login-art-card img{transform:translateZ(18px);animation:gkTeacherFloat 6s ease-in-out infinite;will-change:transform}
+.login-art-card:before{content:'✦';position:absolute;z-index:3;top:12%;left:9%;font-size:20px;color:#d7a92e;animation:gkSpark 2.8s ease-in-out infinite}
+.login-art-card:after{animation:gkShadow 6s ease-in-out infinite}
+.dashboard-app .panel{transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease}
+.dashboard-app .panel:hover{transform:translateY(-2px);box-shadow:var(--gk-shadow);border-color:rgba(23,61,52,.16)}
+.dashboard-app .primary,.parent-app .primary{transition:transform .16s ease,box-shadow .16s ease,filter .16s ease}
+.dashboard-app .primary:hover,.parent-app .primary:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(23,61,52,.18);filter:brightness(1.04)}
+.dashboard-app .primary:active,.parent-app .primary:active{transform:translateY(1px) scale(.99)}
+.dashboard-app .selected{box-shadow:inset 0 0 0 2px rgba(215,169,46,.28)}
+.dashboard-app main{perspective:1200px}
+.dashboard-app main>.panel:first-child{animation:gkReveal .55s ease both}
+.dashboard-app main>.panel:nth-child(2){animation:gkReveal .55s .05s ease both}
+.dashboard-app main>.panel:nth-child(3){animation:gkReveal .55s .1s ease both}
+.dashboard-app main>.panel:nth-child(4){animation:gkReveal .55s .15s ease both}
+.dashboard-app main>.panel:nth-child(n+5){animation:gkReveal .55s .2s ease both}
+.login-google-button:active{transform:scale(.985)!important}
+@keyframes gkFloat{0%,100%{transform:translateY(0) rotateX(0deg)}50%{transform:translateY(-5px) rotateX(.7deg)}}
+@keyframes gkTeacherFloat{0%,100%{transform:translateZ(18px) translateY(0)}50%{transform:translateZ(28px) translateY(-6px)}}
+@keyframes gkSpark{0%,100%{opacity:.35;transform:scale(.9) rotate(0)}50%{opacity:1;transform:scale(1.18) rotate(18deg)}}
+@keyframes gkShadow{0%,100%{transform:scale(1);opacity:.12}50%{transform:scale(.92);opacity:.08}}
+@keyframes gkReveal{from{opacity:0;transform:translateY(10px) translateZ(-10px)}to{opacity:1;transform:translateY(0) translateZ(0)}}
+@media(max-width:900px){.login-art-card{animation-duration:8s}.login-art-card img{animation-duration:7s}.dashboard-app main{padding:16px!important}.dashboard-app .panel{border-radius:18px}}
+@media(max-width:560px){.login-art-card img{transform:translateZ(10px)}.dashboard-app main>.panel{margin-bottom:14px!important}.dashboard-app input,.dashboard-app button{min-height:46px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}}
