@@ -53,6 +53,7 @@ jobs:
       - name: Backend security tests
         working-directory: backend
         env:
+          PYTHONPATH: .
           DATABASE_URL: sqlite:///./ci-gurukulam.db
           GOOGLE_CLIENT_ID: ci-client-id.apps.googleusercontent.com
           JWT_SECRET: ci-test-secret-that-is-long-enough-for-hs256
