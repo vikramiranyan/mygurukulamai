@@ -8,18 +8,14 @@ export type HomeworkItem = { id: string; subject: string; title: string; instruc
 export type ChildWorkspace = { teachers: TeacherProfile[]; subjects: string[]; chapters: ChapterRecord[]; tests: TestExam[]; today: TeachingPlanItem[]; homework: HomeworkItem[] };
 export type LearningWorkspace = Record<string, ChildWorkspace>;
 
+/** A new child starts with no invented teachers, lessons, or subjects. All learning configuration is parent-created or timetable-derived. */
 export function defaultWorkspace(subjects: string[] = []): ChildWorkspace {
-  const unique = [...new Set(subjects.filter(Boolean))];
-  const teacherNames = unique.map((subject, index) => ({ subject, name: index < 3 ? 'Vikram' : 'Raji' }));
   return {
-    teachers: teacherNames.length ? [...new Map(teacherNames.map(({ name }) => [name, name])).values()].map(name => ({ id: `teacher-${name.toLowerCase()}`, name, role: 'Personal AI Teacher', subjects: teacherNames.filter(t => t.name === name).map(t => t.subject), style: 'Warm, patient and step-by-step', enabled: true })) : [
-      { id: 'teacher-vikram', name: 'Vikram', role: 'Personal AI Teacher', subjects: [], style: 'Warm, patient and step-by-step', enabled: true },
-      { id: 'teacher-raji', name: 'Raji', role: 'Personal AI Teacher', subjects: [], style: 'Encouraging, visual and conversational', enabled: true },
-    ],
-    subjects: unique,
+    teachers: [],
+    subjects: [...new Set(subjects.filter(Boolean))],
     chapters: [],
     tests: [],
-    today: unique.slice(0, 3).map((subject, i) => ({ id: `today-${i + 1}`, subject, topic: 'Next lesson', duration: 25, objective: `Build confidence in ${subject}.`, completed: false, scope: 'full_chapter' })),
+    today: [],
     homework: [],
   };
 }
@@ -27,9 +23,14 @@ export function defaultWorkspace(subjects: string[] = []): ChildWorkspace {
 export function normalizeWorkspace(value: unknown): LearningWorkspace {
   if (!value || typeof value !== 'object') return {};
   const result = value as LearningWorkspace;
-  for (const workspace of Object.values(result)) {
+  for (const [childId, workspace] of Object.entries(result)) {
+    if (!workspace || typeof workspace !== 'object') { result[childId] = defaultWorkspace(); continue; }
+    workspace.teachers ??= [];
+    workspace.subjects ??= [];
     workspace.chapters ??= [];
+    workspace.tests ??= [];
     workspace.today ??= [];
+    workspace.homework ??= [];
     workspace.today = workspace.today.map(item => ({ ...item, scope: item.scope ?? 'full_chapter' }));
   }
   return result;
