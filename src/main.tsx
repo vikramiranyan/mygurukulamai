@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import './login-tight.css';
@@ -29,7 +29,7 @@ function ChildAvatar({ gender }: { gender: string }) { if (gender === 'Female') 
 function ChildDetails({ children, setChildren, active, setActive, driveSync }: { children: Child[]; setChildren: React.Dispatch<React.SetStateAction<Child[]>>; active: string; setActive: (id: string) => void; driveSync: DriveSyncController }) {
   const [edit, setEdit] = useState<Child | null>(null); const [view, setView] = useState<Child | null>(null); const [busy, setBusy] = useState(false); const [notice, setNotice] = useState('');
   const saveChild = async () => { if (!edit) return; if (Object.values(edit).some((value, index) => index > 0 && !String(value).trim())) { setNotice('Please complete all child details before saving.'); return; } setBusy(true); setNotice('Saving…'); try { await driveSync.saveChild(edit as DriveChildRecord); setChildren(current => current.some(c => c.id === edit.id) ? current.map(c => c.id === edit.id ? edit : c) : [...current, edit]); if (!active) setActive(edit.id); setEdit(null); setNotice('Child saved successfully.'); } catch (error) { setNotice(error instanceof Error ? error.message : 'Child could not be saved.'); } finally { setBusy(false); } };
-  const remove = async (child: Child) => { if (!confirm(`Delete ${child.name || 'this child'}? This action cannot be undone.`)) return; setBusy(true); setNotice('Deleting…'); try { await driveSync.removeChild(child.id); const remaining = children.filter(c => c.id !== child.id); setChildren(remaining); if (active === child.id) setActive(remaining[0]?.id || ''); setNotice('Child deleted successfully.'); } catch (error) { setNotice(error instanceof Error ? error.message : 'Child could not be deleted.'); } finally { setBusy(false); } };
+  const remove = async (child: Child) => { if (!confirm(`Delete ${child.name || 'this child'}? This action cannot be undone.`)) return; setBusy(true); setNotice('Deleting learning data…'); try { await driveSync.removeChild(child.id); const remaining = children.filter(c => c.id !== child.id); setChildren(remaining); if (active === child.id) setActive(remaining[0]?.id || ''); setNotice('Child and child-specific learning data deleted successfully.'); } catch (error) { setNotice(error instanceof Error ? error.message : 'Child could not be deleted.'); } finally { setBusy(false); } };
   return <section className="parent-section child-details-page"><div className="section-heading"><div><h1>👧 Child Details</h1><p>Add, view, modify or delete children.</p></div><button className="primary" disabled={busy || !driveSync.authorized} onClick={() => setEdit(blankChild())}>＋ Add Child</button></div>{notice && <div className="tt-notice" role="status">{notice}</div>}<div className="child-list">{children.map(child => <article className="child-row" key={child.id}><div className="child-main"><ChildAvatar gender={child.gender} /><div><h3>{child.name || 'Unnamed child'}</h3><p>{child.grade}{child.section ? ` · Section ${child.section}` : ''}</p>{child.school && <span className="child-school">🏫 {child.school}</span>}</div></div><div className="row-actions"><button className="view-action" onClick={() => setView(child)}>◉ View</button><button disabled={busy} onClick={() => setEdit(child)}>✎ Modify</button><button className="danger" disabled={busy} onClick={() => void remove(child)}>Delete</button></div></article>)}</div>{!children.length && <div className="coming-section panel"><div className="coming-icon">✨</div><h2>No children added yet.</h2><p>Add your child's details to get started.</p><button className="primary empty-add" disabled={!driveSync.authorized} onClick={() => setEdit(blankChild())}>＋ Add Child</button></div>}{view && <div className="modal-backdrop"><div className="modal-card"><div className="modal-header"><div><small>CHILD DETAILS</small><h2>{view.name}</h2></div><button onClick={() => setView(null)}>✕</button></div><div className="detail-grid">{[['Child ID', view.id], ['Date of Birth', view.dob], ['Gender', view.gender], ['Class / Grade', view.grade], ['Section', view.section], ['School Name', view.school], ['School Board', view.board]].map(([label, value]) => <div className="detail-item" key={label}><small>{label}</small><strong>{value || '—'}</strong></div>)}</div></div></div>}{edit && <div className="modal-backdrop"><div className="modal-card child-form"><div className="modal-header"><div><small>CHILD DETAILS</small><h2>{edit.name ? 'Modify Child' : 'Add Child'}</h2></div><button onClick={() => setEdit(null)}>✕</button></div><div className="generated-id"><span>Child ID</span><strong>{edit.id}</strong><em>Auto-generated · unique · cannot be edited</em></div><div className="form-grid">{([['name', 'Child Name'], ['dob', 'Date of Birth'], ['gender', 'Gender'], ['grade', 'Class / Grade'], ['section', 'Section'], ['school', 'School Name'], ['board', 'School Board']] as const).map(([key, label]) => <label key={key}>{label}{key === 'gender' || key === 'board' ? <select value={edit[key]} onChange={event => setEdit({ ...edit, [key]: event.target.value })}><option value="">Select</option>{(key === 'gender' ? ['Female', 'Male', 'Other'] : ['CBSE', 'ICSE', 'State Board', 'IB', 'Cambridge', 'Other']).map(option => <option key={option}>{option}</option>)}</select> : <input type={key === 'dob' ? 'date' : 'text'} value={edit[key]} onChange={event => setEdit({ ...edit, [key]: event.target.value })} />}</label>)}</div><div className="actions"><button className="secondary" disabled={busy} onClick={() => setEdit(null)}>Cancel</button><button className="primary" disabled={busy} onClick={() => void saveChild()}>{busy ? 'Saving…' : 'Save Child'}</button></div></div></div>}</section>;
 }
 
@@ -44,10 +44,74 @@ function Parents({ children, setChildren, active, setActive, back, signout, driv
 
 function App() {
   const [session, setSession] = useState<AuthSession | null>(() => { try { const value = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); return isSessionValid(value) ? value : null; } catch { return null; } });
-  const [view, setView] = useState<'child' | 'parents'>('child'); const [children, setChildren] = useState<Child[]>([]); const [active, setActive] = useState(''); const [workspace, setWorkspace] = useState<LearningWorkspace>({}); const [driveSync] = useState(() => new DriveSyncController());
-  useEffect(() => { if (!session) { driveSync.reset(); setChildren([]); setActive(''); setWorkspace({}); return; } setChildren([]); setActive(''); const workspaceKey = `gurukulam:${encodeURIComponent(session.user.id)}:learning-workspace`; try { setWorkspace(normalizeWorkspace(JSON.parse(localStorage.getItem(workspaceKey) || '{}'))); } catch { setWorkspace({}); } setView('child'); driveSync.configure(GOOGLE_CLIENT_ID, async () => { try { const remote = await driveSync.loadChildren(); setChildren(remote); setActive(remote[0]?.id || ''); const timetablePairs = await Promise.all(remote.map(async child => { try { return [child.id, await driveSync.loadTimetable(child.id)] as const; } catch { return [child.id, null] as const; } })); setWorkspace(current => { const next = { ...current }; for (const child of remote) { const timetable = timetablePairs.find(([id]) => id === child.id)?.[1]; const timetableSubjects = timetable?.subjects || []; if (!next[child.id]) next[child.id] = defaultWorkspace(timetableSubjects); else if (timetableSubjects.length) next[child.id] = { ...next[child.id], subjects: [...new Set([...next[child.id].subjects, ...timetableSubjects])] }; } return next; }); } catch (error) { console.error(error); } }, error => console.error(error)); try { driveSync.authorize(); } catch (error) { console.error(error); } }, [session?.user.id, driveSync]);
-  useEffect(() => { if (!session) return; sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); }, [session]); useEffect(() => { if (!session) return; const key = `gurukulam:${encodeURIComponent(session.user.id)}:learning-workspace`; localStorage.setItem(key, JSON.stringify(workspace)); }, [workspace, session?.user.id]); useEffect(() => { if (!session) return; const checkExpiry = () => { if (!isSessionValid(session)) { driveSync.reset(); setSession(null); } }; checkExpiry(); const timer = window.setInterval(checkExpiry, 30_000); return () => window.clearInterval(timer); }, [session, driveSync]);
-  if (!session) return <Login setSession={setSession} />; const signout = () => { driveSync.reset(); setSession(null); setView('child'); }; const child = children.find(item => item.id === active) || children[0] || blankChild(); const childWorkspace = workspace[child.id] || defaultWorkspace(); return view === 'parents' ? <Parents children={children} setChildren={setChildren} active={active} setActive={setActive} back={() => setView('child')} signout={signout} driveSync={driveSync} workspace={workspace} setWorkspace={setWorkspace} /> : <LearningHome child={child} onParents={() => setView('parents')} signout={signout} workspace={childWorkspace} />;
+  const [view, setView] = useState<'child' | 'parents'>('child');
+  const [children, setChildren] = useState<Child[]>([]);
+  const [active, setActive] = useState('');
+  const [workspace, setWorkspace] = useState<LearningWorkspace>({});
+  const [workspaceReady, setWorkspaceReady] = useState(false);
+  const saveTimer = useRef<number | undefined>(undefined);
+  const [driveSync] = useState(() => new DriveSyncController());
+
+  useEffect(() => {
+    if (!session) {
+      driveSync.reset(); setChildren([]); setActive(''); setWorkspace({}); setWorkspaceReady(false); return;
+    }
+    setChildren([]); setActive(''); setWorkspace({}); setWorkspaceReady(false); setView('child');
+    const workspaceKey = `gurukulam:${encodeURIComponent(session.user.id)}:learning-workspace`;
+    let legacyWorkspace: LearningWorkspace = {};
+    try { legacyWorkspace = normalizeWorkspace(JSON.parse(localStorage.getItem(workspaceKey) || '{}')); } catch { legacyWorkspace = {}; }
+
+    driveSync.configure(GOOGLE_CLIENT_ID, async () => {
+      try {
+        const remote = await driveSync.loadChildren();
+        setChildren(remote); setActive(remote[0]?.id || '');
+        const timetablePairs = await Promise.all(remote.map(async child => { try { return [child.id, await driveSync.loadTimetable(child.id)] as const; } catch { return [child.id, null] as const; } }));
+        const workspacePairs = await Promise.all(remote.map(async child => { try { return [child.id, await driveSync.loadWorkspace(child.id)] as const; } catch { return [child.id, null] as const; } }));
+        setWorkspace(() => {
+          const next: LearningWorkspace = {};
+          for (const child of remote) {
+            const remoteWorkspace = workspacePairs.find(([id]) => id === child.id)?.[1];
+            const legacy = legacyWorkspace[child.id];
+            const timetable = timetablePairs.find(([id]) => id === child.id)?.[1];
+            const timetableSubjects = timetable?.subjects || [];
+            const base = remoteWorkspace || legacy || defaultWorkspace(timetableSubjects);
+            next[child.id] = timetableSubjects.length ? { ...base, subjects: [...new Set([...(base.subjects || []), ...timetableSubjects])] } : base;
+          }
+          return next;
+        });
+        setWorkspaceReady(true);
+      } catch (error) { console.error(error); }
+    }, error => console.error(error));
+    try { driveSync.authorize(); } catch (error) { console.error(error); }
+    return () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); };
+  }, [session?.user.id, driveSync]);
+
+  useEffect(() => { if (!session) return; sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); }, [session]);
+
+  useEffect(() => {
+    if (!session || !workspaceReady) return;
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      const entries = Object.entries(workspace);
+      void Promise.all(entries.map(async ([childIdValue, childWorkspace]) => {
+        try { await driveSync.saveWorkspace(childIdValue, childWorkspace); }
+        catch (error) { console.error(`Learning workspace sync failed for ${childIdValue}:`, error); }
+      }));
+    }, 900);
+    return () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); };
+  }, [workspace, workspaceReady, session?.user.id, driveSync]);
+
+  useEffect(() => {
+    if (!session) return;
+    const checkExpiry = () => { if (!isSessionValid(session)) { driveSync.reset(); setSession(null); } };
+    checkExpiry(); const timer = window.setInterval(checkExpiry, 30_000); return () => window.clearInterval(timer);
+  }, [session, driveSync]);
+
+  if (!session) return <Login setSession={setSession} />;
+  const signout = () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); driveSync.reset(); setSession(null); setView('child'); };
+  const child = children.find(item => item.id === active) || children[0] || blankChild();
+  const childWorkspace = workspace[child.id] || defaultWorkspace();
+  return view === 'parents' ? <Parents children={children} setChildren={setChildren} active={active} setActive={setActive} back={() => setView('child')} signout={signout} driveSync={driveSync} workspace={workspace} setWorkspace={setWorkspace} /> : <LearningHome child={child} onParents={() => setView('parents')} signout={signout} workspace={childWorkspace} />;
 }
 
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);
