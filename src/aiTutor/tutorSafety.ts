@@ -28,13 +28,11 @@ export function checkTutorInput(input: string): SafetyDecision {
   if (!raw) return { allowed: false, reason: 'Please ask a learning question.', normalized: '' };
   if (raw.length > MAX_INPUT_LENGTH) return { allowed: false, reason: 'That question is a little too long. Please ask it in a shorter way.', normalized: raw.slice(0, MAX_INPUT_LENGTH) };
   const normalized = normalizeTutorInput(raw);
-  if (blockedPatterns.some(pattern => pattern.test(normalized))) {
-    return { allowed: false, reason: 'Request is outside the age-appropriate tutor scope.', normalized };
-  }
-  if (promptInjectionPatterns.some(pattern => pattern.test(normalized))) {
-    return { allowed: false, reason: 'I can help with learning, but I cannot change my safety or parent controls.', normalized };
-  }
-  return { allowed: true, normalized };
+  if (blockedPatterns.some(pattern => pattern.test(normalized))) return { allowed: false, reason: 'Request is outside the age-appropriate tutor scope.' };
+  if (promptInjectionPatterns.some(pattern => pattern.test(normalized))) return { allowed: false, reason: 'I can help with learning, but I cannot change my safety or parent controls.' };
+  // Keep the established public return shape for allowed requests. Callers that need
+  // normalized text can use normalizeTutorInput() explicitly.
+  return { allowed: true };
 }
 
 export function ageAppropriateInstruction(text: string, age?: number): string {
