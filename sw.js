@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gurukulam-shell-v1';
+const CACHE_NAME = 'gurukulam-shell-v2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -31,29 +31,27 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // Network-first for navigations so authentication and application state stay current.
+  // Always prefer the network for navigations so authentication and deployed app code stay current.
   if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request).catch(() => caches.match('./index.html'))
-    );
+    event.respondWith(fetch(request).catch(() => caches.match('./index.html')));
     return;
   }
 
-  // Cache only same-origin static assets. Never cache Google APIs, OAuth, or user data.
+  // Never cache Google APIs, OAuth, or user data. Static assets use network-first so a new
+  // deployment cannot leave the child tutor running an older JavaScript bundle.
   const isStatic = /\.(?:css|js|svg|png|jpg|jpeg|webp|woff2?|ico)$/i.test(url.pathname)
     || url.pathname.endsWith('/manifest.webmanifest');
   if (!isStatic) return;
 
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request).then((response) => {
+    fetch(request)
+      .then((response) => {
         if (response.ok) {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          void caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
         }
         return response;
-      });
-      return cached || network;
-    })
+      })
+      .catch(() => caches.match(request))
   );
 });
