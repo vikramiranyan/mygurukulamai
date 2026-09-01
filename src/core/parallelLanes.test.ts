@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { starterCurriculum, teacherFor } from '../curriculum';
+import { starterCurriculum } from '../curriculum';
 import { searchChapters, mapChapterPages, trustedSource } from './curriculumWorkflow';
 import { buildTeachingPlan, diagnoseAnswer } from './tutorEngine';
 import { greeting, teacherTurn } from './teacherEngine';
 import { cueForTurn } from './animationRuntime';
 
 describe('parallel implementation lanes', () => {
-  it('keeps teacher assignment deterministic', () => {
-    expect(teacherFor('Maths')).toBe('Vikram');
-    expect(teacherFor('EVS')).toBe('Raji');
+  it('does not hardcode teacher assignment into curriculum', () => {
+    expect(starterCurriculum.Maths[1]).not.toHaveProperty('teacher');
+    expect(starterCurriculum.EVS[0]).not.toHaveProperty('teacher');
   });
 
   it('searches and maps curriculum chapters', () => {
@@ -27,9 +27,9 @@ describe('parallel implementation lanes', () => {
     expect(diagnoseAnswer('I understand addition')).toMatchObject({ kind: 'correct' });
   });
 
-  it('produces teacher and animation runtime cues', () => {
-    expect(greeting('Vikram', 'Aarav', 'Addition').text).toContain('I’m Vikram');
-    expect(teacherTurn('Raji', 'reteach', 'Plants').turn).toBe('reteach');
-    expect(cueForTurn('Raji', 'celebrate')).toMatchObject({ state: 'celebrating', intensity: 2 });
+  it('produces teacher and animation runtime cues for a supplied teacher name', () => {
+    expect(greeting('Teacher A', 'Aarav', 'Addition').text).toContain('I’m Teacher A');
+    expect(teacherTurn('Teacher B', 'reteach', 'Plants').turn).toBe('reteach');
+    expect(cueForTurn('Teacher B', 'celebrate')).toMatchObject({ state: 'celebrating', intensity: 2 });
   });
 });
