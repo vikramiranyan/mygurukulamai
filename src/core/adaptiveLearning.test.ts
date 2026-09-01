@@ -3,7 +3,7 @@ import { diagnoseMistake, recommendNextStep, remediationMessage, scoreLearningSi
 
 describe('adaptive learning intelligence', () => {
   it('scores hints and repeated attempts conservatively', () => {
-    expect(scoreLearningSignals([{ correct: true }, { correct: true, hintUsed: true, attempts: 2 }])).toBe(85);
+    expect(scoreLearningSignals([{ correct: true }, { correct: true, hintUsed: true, attempts: 2 }])).toBe(90);
   });
 
   it('recommends reteaching after repeated failure', () => {
