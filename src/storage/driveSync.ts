@@ -57,7 +57,19 @@ export class DriveSyncController {
   async saveTimetable(record: ChildTimetableRecord) { return saveChildTimetable(await this.requireToken(), record); }
   async updateSubjects(childId: string, subjects: string[], auditEntry: ChildTimetableRecord['audit'][number]): Promise<ChildTimetableRecord> { return updateChildSubjects(await this.requireToken(), childId, subjects, auditEntry); }
   async loadWorkspace(childId: string): Promise<ChildWorkspace | null> { const workspace = await loadLearningWorkspace(await this.requireToken(), childId); return workspace ? normalizeWorkspace({ [childId]: workspace })[childId] : null; }
-  async saveWorkspace(childId: string, workspace: ChildWorkspace): Promise<void> { await saveLearningWorkspace(await this.requireToken(), childId, workspace); }
+  async saveWorkspace(childId: string, workspace: ChildWorkspace): Promise<void> {
+    const token = await this.requireToken();
+    // The timetable is the source of truth for a child's subjects. Workspace
+    // autosave can run shortly after a manual subject change and otherwise
+    // overwrite the newer timetable-derived subject list with stale React state.
+    // Always merge the latest persisted timetable subjects before writing the
+    // workspace so manual additions/deletions survive navigation and reloads.
+    const timetable = await loadChildTimetable(token, childId);
+    const nextWorkspace = timetable
+      ? { ...workspace, subjects: timetable.subjects }
+      : workspace;
+    await saveLearningWorkspace(token, childId, nextWorkspace);
+  }
   private async migrateLocalChildren(onError: (error: unknown) => void): Promise<void> {
     const session = readJson<{ user?: { id?: string } }>(SESSION_KEY, {}); const userId = session.user?.id; if (!userId || !this.token) return;
     const localKey = `gurukulam:${encodeURIComponent(userId)}:children`; let parsed: unknown = [];
