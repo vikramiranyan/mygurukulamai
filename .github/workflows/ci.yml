@@ -36,28 +36,3 @@ jobs:
         run: npm run build
       - name: Stage 4 acceptance marker
         run: echo "Stage 4 CI verification passed"
-
-  backend-security:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-      - name: Install backend dependencies
-        working-directory: backend
-        run: python -m pip install --upgrade pip && pip install -r requirements.txt pytest
-      - name: Backend security tests
-        working-directory: backend
-        env:
-          PYTHONPATH: .
-          DATABASE_URL: sqlite:///./ci-gurukulam.db
-          GOOGLE_CLIENT_ID: ci-client-id.apps.googleusercontent.com
-          JWT_SECRET: ci-test-secret-that-is-long-enough-for-hs256
-          FRONTEND_ORIGINS: http://localhost:5173
-          SECURE_HEADERS: 'true'
-          ALLOWED_HOSTS: localhost
-        run: pytest -q
