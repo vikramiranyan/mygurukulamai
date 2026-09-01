@@ -19,6 +19,8 @@
 - [ ] Complete end-to-end production readiness review covering frontend, backend, persistence, AI boundaries, deployment, error handling, abuse resistance, and recovery scenarios.
 
 ### P1 — High Priority
+- [ ] Remove hardcoded teacher assignments/default teachers; teachers must exist only after explicit parent creation/configuration and only subjects explicitly assigned to that teacher may use them.
+- [ ] Allow manual subject add/modify/delete in Time Table / Subjects when no timetable has been uploaded, with the same child-scoped persistence and integrity rules.
 - [ ] Build the complete adaptive learning intelligence layer: learner mastery model, misconception detection, remediation, progression, spaced repetition, and personalized difficulty.
 - [ ] Complete AI tutor orchestration with safe model routing, context management, grounding, fallback behavior, prompt-injection resistance, and age-appropriate responses.
 - [ ] Complete parent dashboard and child learning analytics with actionable progress, mastery, weak areas, recommendations, and privacy-safe reporting.
@@ -47,3 +49,4 @@
 ## Change Log
 
 - **2026-09-01:** Created the project TODO mechanism so user suggestions are captured while development continues and are automatically considered at the end of each work cycle.
+- **2026-09-01:** Added user-requested backlog items for removing hardcoded teacher/subject relationships and enabling manual subject management without a timetable.
