@@ -111,9 +111,49 @@ export class DriveSyncController {
     return this.waitingForToken;
   }
 
-  async loadChildren(): Promise<DriveChildRecord[]> { return loadChildrenFromDrive(await this.requireToken()); }
-  async saveChild(child: DriveChildRecord) { return saveChildToDrive(await this.requireToken(), child); }
-  async removeChild(childId: string): Promise<void> { const token = await this.requireToken(); await removeLearningWorkspace(token, childId); await removeChildFromDrive(token, childId); }
+  async loadChildren(): Promise<DriveChildRecord[]> {
+    const children = await loadChildrenFromDrive(await this.requireToken());
+    const session = readJson<{ user?: { id?: string } }>(SESSION_KEY, {});
+    const userId = session.user?.id || '';
+    if (!userId) return children;
+    const childrenKey = `gurukulam:${encodeURIComponent(userId)}:children`;
+    const activeKey = `gurukulam:${encodeURIComponent(userId)}:active-child`;
+    try {
+      localStorage.setItem(childrenKey, JSON.stringify(children));
+      const activeId = localStorage.getItem(activeKey);
+      if (!activeId) return children;
+      const activeChild = children.find(child => child.id === activeId);
+      return activeChild ? [activeChild, ...children.filter(child => child.id !== activeId)] : children;
+    } catch { return children; }
+  }
+  async saveChild(child: DriveChildRecord) {
+    const result = await saveChildToDrive(await this.requireToken(), child);
+    try {
+      const session = readJson<{ user?: { id?: string } }>(SESSION_KEY, {});
+      const userId = session.user?.id || '';
+      if (userId) {
+        const key = `gurukulam:${encodeURIComponent(userId)}:children`;
+        const current = readJson<DriveChildRecord[]>(key, []);
+        localStorage.setItem(key, JSON.stringify(current.some(item => item.id === child.id) ? current.map(item => item.id === child.id ? child : item) : [...current, child]));
+      }
+    } catch { /* local cache is optional */ }
+    return result;
+  }
+  async removeChild(childId: string): Promise<void> {
+    const token = await this.requireToken();
+    await removeLearningWorkspace(token, childId);
+    await removeChildFromDrive(token, childId);
+    try {
+      const session = readJson<{ user?: { id?: string } }>(SESSION_KEY, {});
+      const userId = session.user?.id || '';
+      if (userId) {
+        const key = `gurukulam:${encodeURIComponent(userId)}:children`;
+        const current = readJson<DriveChildRecord[]>(key, []);
+        localStorage.setItem(key, JSON.stringify(current.filter(item => item.id !== childId)));
+        if (localStorage.getItem(`gurukulam:${encodeURIComponent(userId)}:active-child`) === childId) localStorage.removeItem(`gurukulam:${encodeURIComponent(userId)}:active-child`);
+      }
+    } catch { /* local cache is optional */ }
+  }
   async loadTimetable(childId: string): Promise<ChildTimetableRecord | null> { return loadChildTimetable(await this.requireToken(), childId); }
   async saveTimetable(record: ChildTimetableRecord) { return saveChildTimetable(await this.requireToken(), record); }
   async updateSubjects(childId: string, subjects: string[], auditEntry: ChildTimetableRecord['audit'][number]): Promise<ChildTimetableRecord> { return updateChildSubjects(await this.requireToken(), childId, subjects, auditEntry); }
