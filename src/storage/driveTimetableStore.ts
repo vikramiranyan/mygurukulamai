@@ -1,4 +1,4 @@
-import { ensureGurukulamFolders, listChildFiles, readFile, writeJson, type DriveFile } from './googleDrive';
+import { ensureGurukulamFolders, findNamedChildFile, readFile, writeJson, type DriveFile } from './googleDrive';
 import type { ParsedTimetablePeriod } from '../timetable/parser';
 import { defaultWorkspace } from '../learningWorkspace';
 import { loadLearningWorkspace, saveLearningWorkspace } from './driveLearningWorkspaceStore';
@@ -9,11 +9,8 @@ export type ChildTimetableRecord = { version: 1; childId: string; fileName: stri
 const timetableFileName = (childId: string) => `${childId}-timetable.json`;
 function normalizeSubject(value: string): string { return value.trim().replace(/\s+/g, ' '); }
 export function uniqueSubjects(subjects: string[]): string[] { const seen = new Map<string, string>(); for (const raw of subjects) { const subject = normalizeSubject(raw); if (!subject) continue; const key = subject.toLocaleLowerCase(); if (!seen.has(key)) seen.set(key, subject); } return [...seen.values()].sort((a, b) => a.localeCompare(b)); }
-async function findTimetableFile(token: string, childId: string): Promise<DriveFile | null> { const { childrenId } = await ensureGurukulamFolders(token); const files = await listChildFiles(token, childrenId); return files.find(file => file.name === timetableFileName(childId)) || null; }
-async function syncSubjectsToLearningWorkspace(token: string, childId: string, subjects: string[]): Promise<void> {
-  const workspace = (await loadLearningWorkspace(token, childId)) || defaultWorkspace();
-  await saveLearningWorkspace(token, childId, { ...workspace, subjects: uniqueSubjects(subjects) });
-}
+async function findTimetableFile(token: string, childId: string): Promise<DriveFile | null> { const { childrenId } = await ensureGurukulamFolders(token); return findNamedChildFile(token, childrenId, timetableFileName(childId)); }
+async function syncSubjectsToLearningWorkspace(token: string, childId: string, subjects: string[]): Promise<void> { const workspace = (await loadLearningWorkspace(token, childId)) || defaultWorkspace(); await saveLearningWorkspace(token, childId, { ...workspace, subjects: uniqueSubjects(subjects) }); }
 export async function loadChildTimetable(token: string, childId: string): Promise<ChildTimetableRecord | null> { const file = await findTimetableFile(token, childId); if (!file) return null; const record = await readFile<ChildTimetableRecord>(token, file.id); if (!record || record.version !== 1 || record.childId !== childId) return null; return { ...record, periods: Array.isArray(record.periods) ? record.periods : [], subjects: uniqueSubjects(Array.isArray(record.subjects) ? record.subjects : []), audit: Array.isArray(record.audit) ? record.audit : [] }; }
 export async function saveChildTimetable(token: string, record: ChildTimetableRecord): Promise<ChildTimetableRecord> {
   if (!record.childId.trim()) throw new Error('A child must be selected before saving a timetable.');
@@ -24,4 +21,4 @@ export async function saveChildTimetable(token: string, record: ChildTimetableRe
   await syncSubjectsToLearningWorkspace(token, safeRecord.childId, safeRecord.subjects);
   return safeRecord;
 }
-export async function updateChildSubjects(token: string, childId: string, subjects: string[], auditEntry: ChildTimetableRecord['audit'][number]): Promise<ChildTimetableRecord> { const current = await loadChildTimetable(token, childId); if (!current) throw new Error('No confirmed timetable exists for this child yet.'); const next = { ...current, subjects: uniqueSubjects(subjects), audit: [...current.audit, auditEntry] }; await saveChildTimetable(token, next); return next; }
+export async function updateChildSubjects(token: string, childId: string, subjects: string[], auditEntry: ChildTimetableRecord['audit'][number]): Promise<ChildTimetableRecord> { const current = await loadChildTimetable(token, childId); if (!current) throw new Error('No confirmed timetable exists for this child yet.'); const next = { ...current, subjects: uniqueSubjects(subjects), audit: [...current.audit, auditEntry] }; return saveChildTimetable(token, next); }
