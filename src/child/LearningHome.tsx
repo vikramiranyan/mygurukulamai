@@ -94,7 +94,6 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
     const q = safeQuestion.toLocaleLowerCase();
     let response = '';
 
-    // The child-facing tutor must teach, not merely echo the child's request.
     if (/\b(numbers?|count|counting)\b/.test(q) && /(10|ten|upto|up to|1-10|one to ten)/.test(q)) {
       response = `${teacherName || 'Your teacher'} says: Great! Let's learn numbers from 1 to 10.\n\n1 — one\n2 — two\n3 — three\n4 — four\n5 — five\n6 — six\n7 — seven\n8 — eight\n9 — nine\n10 — ten\n\nLet's count together: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10! 🎉\n\nNow your turn: What number comes after 5? Type the answer, or use the microphone and say it. I will check your answer and then teach you the next step.`;
     } else if (/\b(alphabet|letters|a to z|a-z)\b/.test(q)) {
@@ -140,18 +139,83 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
     setFeedback(message); setStudentAnswer(''); if (checkIndex < lesson.checks.length - 1) setCheckIndex(checkIndex + 1); else void speakFeedback(message);
   };
 
-  return <div className="app dashboard-app" style={{ minHeight: '100vh' }}>
-    <header><div className="gurukulam-brand"><div className="brand"><strong>Gurukulam AI</strong><small>Personal AI Teacher</small></div></div><div className="dashboard-actions"><button className="parent-access" onClick={onParents}>👨‍👩‍👧 Parent Dashboard</button><button className="dashboard-signout" onClick={signout}>⇥ Sign out</button></div></header>
-    <main style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
-      <section className="panel teacher-presence" style={{ marginBottom: 20 }}><div className="teacher-presence-copy"><small>MY LEARNING SPACE</small><h1>Hello, {child.name || 'Student'}! 👋</h1><p>{teacherName ? `Learn with ${teacherName}, practise, and check what you know.` : 'Your parent controls which teacher teaches each subject.'}</p></div><div className={`teacher-orb ${listening ? 'is-listening' : ''} ${speaking ? 'is-speaking' : ''}`} aria-label={`${teacherName || 'Teacher'} is ${listening ? 'listening' : speaking ? 'speaking' : 'ready'}`}><div className="teacher-orb-face">{teacherName ? '👩🏽‍🏫' : '👨🏽‍🏫'}</div><span>{listening ? 'Listening…' : speaking ? 'Speaking…' : teacherName ? 'Ready to learn' : 'Teacher not assigned'}</span></div></section>
-      <section className="panel" style={{ marginBottom: 20 }}><h2>📖 Today's Teaching</h2>{workspace.today.length ? <div style={{ display: 'grid', gap: 8 }}>{workspace.today.map(item => <div key={item.id} style={{ padding: 12, borderRadius: 10, background: 'var(--panel-soft, #f6f6f6)' }}><strong>{item.subject}: {item.topic}</strong><div>{item.duration} min · {item.objective} {item.completed ? ' · ✓ Completed' : ''}</div></div>)}</div> : <p>Your parent will build today's learning plan from your subjects and textbook chapters.</p>}</section>
-      <section className="panel" style={{ marginBottom: 20 }}><h2>🏠 Homework</h2>{workspace.homework.length ? <div style={{ display: 'grid', gap: 8 }}>{workspace.homework.map(item => <div key={item.id} style={{ padding: 12, borderRadius: 10, background: 'var(--panel-soft, #f6f6f6)' }}><strong>{item.title}</strong><div>{item.subject} · Due {item.dueDate} · {item.status}</div><small>{item.instructions}</small></div>)}</div> : <p>No homework assigned yet. Great job staying ready!</p>}</section>
-      <section className="panel" style={{ marginBottom: 20 }}><h2>📝 Tests & Exams</h2>{workspace.tests.length ? <div style={{ display: 'grid', gap: 8 }}>{workspace.tests.map(item => <div key={item.id} style={{ padding: 12, borderRadius: 10, background: 'var(--panel-soft, #f6f6f6)' }}><strong>{item.title}</strong><div>{item.type} · {item.subject} · {item.date}</div><small>{item.topics}</small></div>)}</div> : <p>No upcoming tests have been scheduled.</p>}</section>
-      <section className="panel" style={{ marginBottom: 20 }}><h2>👨‍🏫 My Teachers</h2>{workspace.teachers.length ? workspace.teachers.filter(t => t.enabled).map(t => <div key={t.id} style={{ padding: 10 }}><strong>{t.name}</strong> · {t.subjects.join(', ')}<br /><small>{t.role} · {t.style}</small></div>) : <p>Your parent has not configured teacher details yet.</p>}</section>
-      <section className="panel" style={{ marginBottom: 20 }}><h2>📚 Choose a subject</h2>{availableSubjects.length ? <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{availableSubjects.map(item => <button key={item} className={subject === item ? 'primary' : 'secondary'} onClick={() => resetForSubject(item)}>{item}</button>)}</div> : <p>No subjects are configured yet. Ask your parent to add subjects from Time Table / Subjects.</p>}</section>
-      <section className="panel" style={{ marginBottom: 20 }}><h2>Choose a chapter</h2>{customChapters.length ? <div style={{ display: 'grid', gap: 10 }}>{customChapters.map(item => <button key={item.id} className={chapter?.id === item.id ? 'selected' : ''} style={{ textAlign: 'left', padding: 14 }} onClick={() => resetChapter(item)}><strong>{item.title}</strong><br /><small>{item.pages.length} pages · Parent uploaded</small></button>)}</div> : <p>No chapter has been uploaded for {subject || 'this subject'} yet. Your parent can add it from Parent Dashboard → Subjects.</p>}</section>
-      {chapter && lesson && <section className="panel" style={{ marginBottom: 20 }}><h2>Lesson: {lesson.title}</h2>{currentTarget && <div className="tt-notice"><strong>Parent-selected teaching target:</strong> {currentTarget.topic}{currentTarget.scope === 'pages' && currentTarget.pageNumbers?.length ? ` · Pages ${currentTarget.pageNumbers.join(', ')}` : ''}</div>}{!teacherName && <div className="tt-notice"><strong>Teacher setup required:</strong> Ask your parent to assign a teacher to {subject} before starting this lesson.</div>}<p><strong>Today's goal:</strong> {lesson.objective}</p><p>{lesson.explanation}</p><h3>Examples / Source pages</h3><ul>{lesson.examples.map((example, index) => <li key={`${index}-${example}`}>{example}</li>)}</ul>{!session ? <button className="primary" disabled={!teacherName} onClick={begin}>▶ Start Lesson</button> : <><div style={{ padding: 14, borderRadius: 12, background: 'var(--panel-soft, #f6f6f6)', marginBottom: 14 }}><strong>{plan.mode.toUpperCase()}</strong><p>{plan.steps.join(' → ')}</p><p>{adaptive.reason}</p><p>Mastery: <strong>{session.masteryScore}%</strong> · Confidence: <strong>{adaptive.confidence}%</strong></p></div><h3>Understanding check</h3>{lesson.checks[checkIndex] ? <><p>{lesson.checks[checkIndex].prompt}</p><div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><input maxLength={300} value={studentAnswer} onChange={e => setStudentAnswer(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submitAnswer(); }} placeholder="Type your answer" aria-label="Your answer"/><button className="primary" disabled={!studentAnswer.trim()} onClick={submitAnswer}>Check Answer</button></div></> : <p>🎉 You completed this lesson's checks. Final mastery: <strong>{session.masteryScore}%</strong>.</p>}{feedback && <div className="tt-notice" role="status" style={{ marginTop: 14 }}>{feedback}</div>}</>}</section>}
-      <section className="panel"><h2>💬 Ask your AI teacher</h2><p>Questions are checked for age-appropriate safety before being answered. Nothing is sent to an AI provider by this screen.</p><div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><input maxLength={500} value={question} onChange={e => setQuestion(e.target.value)} placeholder={`Ask about ${chapter?.title || subject || 'your lesson'}`} onKeyDown={e => { if (e.key === 'Enter') askTutor(); }} aria-label="Question for your AI teacher"/><button className="primary" disabled={!question.trim()} onClick={askTutor}>Ask</button><button className={listening ? 'danger' : 'secondary'} onClick={() => void startVoice()} aria-pressed={listening}>{listening ? '■ Stop listening' : '🎙 Ask by voice'}</button>{speaking && <button className="secondary" onClick={stopVoiceReply}>🔇 Stop reply</button>}</div><small className="voice-status" role="status">{voiceStatus}</small>{feedback && !session && <div className="tt-notice" role="status" style={{ marginTop: 14 }}>{feedback}</div>}</section>
-    </main><footer>Gurukulam AI · Parent-controlled learning environment</footer>
+  return <div className="app dashboard-app child-dashboard-v2" style={{ minHeight: '100vh' }}>
+    <header className="child-topbar">
+      <div className="child-brand-lockup">
+        <div className="child-brand-mark" aria-hidden="true">G<span>AI</span></div>
+        <div className="brand"><strong>Gurukulam AI</strong><small>My Learning Space</small></div>
+      </div>
+      <div className="dashboard-actions child-top-actions">
+        <button className="parent-access" onClick={onParents}>👨‍👩‍👧 <span>Parent Dashboard</span></button>
+        <button className="dashboard-signout" onClick={signout}>⇥ <span>Sign out</span></button>
+      </div>
+    </header>
+
+    <main className="child-main">
+      <section className="child-hero panel">
+        <div className="child-hero-copy">
+          <div className="hero-kicker">✨ MY LEARNING SPACE</div>
+          <h1>Hello, {child.name || 'Student'}! <span>👋</span></h1>
+          <p>{teacherName ? `Learn with ${teacherName}, practise new skills, and show what you know.` : 'Your parent controls which teacher teaches each subject.'}</p>
+          <div className="hero-chips"><span>📚 Learn</span><span>🎯 Practise</span><span>⭐ Grow</span></div>
+        </div>
+        <div className="hero-art-wrap">
+          <img src="./assets/gurukulam-two-girls-3d.png" alt="Two children learning together" className="hero-art" />
+          <div className={`teacher-orb ${listening ? 'is-listening' : ''} ${speaking ? 'is-speaking' : ''}`} aria-label={`${teacherName || 'Teacher'} is ${listening ? 'listening' : speaking ? 'speaking' : 'ready'}`}>
+            <div className="teacher-orb-face">{teacherName ? '👩🏽‍🏫' : '👨🏽‍🏫'}</div>
+            <span>{listening ? 'Listening…' : speaking ? 'Speaking…' : teacherName ? 'Ready!' : 'Not assigned'}</span>
+          </div>
+        </div>
+        <div className="hero-sparkles" aria-hidden="true">✦　✧　★</div>
+      </section>
+
+      <section className="child-section-head">
+        <div><span>YOUR DAY</span><h2>Let’s see what’s happening 🌈</h2></div>
+        <div className="section-path">Today’s learning path</div>
+      </section>
+
+      <div className="quick-grid">
+        <section className="quick-card quick-today panel">
+          <div className="quick-icon">📖</div><div className="quick-label">TODAY</div><h3>Today’s Teaching</h3>
+          {workspace.today.length ? <div className="quick-list">{workspace.today.slice(0, 2).map(item => <div key={item.id}><strong>{item.subject}: {item.topic}</strong><small>{item.duration} min · {item.completed ? '✓ Completed' : item.objective}</small></div>)}</div> : <p>Your parent will build today’s learning plan from your subjects and textbook chapters.</p>}
+        </section>
+        <section className="quick-card quick-homework panel">
+          <div className="quick-icon">🎒</div><div className="quick-label">PRACTISE</div><h3>Homework</h3>
+          {workspace.homework.length ? <div className="quick-list">{workspace.homework.slice(0, 2).map(item => <div key={item.id}><strong>{item.title}</strong><small>{item.subject} · Due {item.dueDate}</small></div>)}</div> : <p>No homework yet. Great job staying ready!</p>}
+        </section>
+        <section className="quick-card quick-tests panel">
+          <div className="quick-icon">🏆</div><div className="quick-label">GET READY</div><h3>Tests & Exams</h3>
+          {workspace.tests.length ? <div className="quick-list">{workspace.tests.slice(0, 2).map(item => <div key={item.id}><strong>{item.title}</strong><small>{item.type} · {item.subject} · {item.date}</small></div>)}</div> : <p>No upcoming tests have been scheduled.</p>}
+        </section>
+        <section className="quick-card quick-teachers panel">
+          <div className="quick-icon">👩🏽‍🏫</div><div className="quick-label">MY TEAM</div><h3>My Teachers</h3>
+          {workspace.teachers.filter(t => t.enabled).length ? <div className="quick-list">{workspace.teachers.filter(t => t.enabled).slice(0, 2).map(t => <div key={t.id}><strong>{t.name}</strong><small>{t.subjects.join(', ')} · {t.role}</small></div>)}</div> : <p>Your parent has not configured teacher details yet.</p>}
+        </section>
+      </div>
+
+      <section className="learning-path panel">
+        <div className="learning-path-title"><div className="path-icon">🧭</div><div><span>LEARNING PATH</span><h2>Choose what to learn</h2></div></div>
+        <div className="path-controls">
+          <div className="path-block"><label>1 · SUBJECT</label>{availableSubjects.length ? <div className="subject-pills">{availableSubjects.map(item => <button key={item} className={subject === item ? 'subject-pill active' : 'subject-pill'} onClick={() => resetForSubject(item)}>{item}</button>)}</div> : <p>No subjects are configured yet. Ask your parent to add subjects from Time Table / Subjects.</p>}</div>
+          <div className="path-arrow" aria-hidden="true">→</div>
+          <div className="path-block"><label>2 · CHAPTER</label>{customChapters.length ? <div className="chapter-pills">{customChapters.map(item => <button key={item.id} className={chapter?.id === item.id ? 'chapter-pill active' : 'chapter-pill'} onClick={() => resetChapter(item)}><strong>{item.title}</strong><small>{item.pages.length} pages</small></button>)}</div> : <p>No chapter has been uploaded for {subject || 'this subject'} yet. Your parent can add it from Parent Dashboard → Subjects.</p>}</div>
+        </div>
+      </section>
+
+      {chapter && lesson && <section className="lesson-card panel">
+        <div className="lesson-heading"><div><span>📘 YOUR LESSON</span><h2>{lesson.title}</h2></div>{session && <div className="mastery-badge">⭐ {session.masteryScore}% mastery</div>}</div>
+        {currentTarget && <div className="tt-notice lesson-target"><strong>Today’s target:</strong> {currentTarget.topic}{currentTarget.scope === 'pages' && currentTarget.pageNumbers?.length ? ` · Pages ${currentTarget.pageNumbers.join(', ')}` : ''}</div>}
+        {!teacherName && <div className="tt-notice lesson-target"><strong>Teacher setup required:</strong> Ask your parent to assign a teacher to {subject} before starting this lesson.</div>}
+        <div className="lesson-body"><div><p className="lesson-goal"><strong>🎯 Today’s goal:</strong> {lesson.objective}</p><p>{lesson.explanation}</p></div><div className="example-box"><span>💡 TRY THIS</span><ul>{lesson.examples.map((example, index) => <li key={`${index}-${example}`}>{example}</li>)}</ul></div></div>
+        {!session ? <button className="primary lesson-start" disabled={!teacherName} onClick={begin}>▶ Start Lesson</button> : <div className="lesson-session"><div className="session-summary"><strong>{plan.mode.toUpperCase()}</strong><span>{adaptive.reason}</span><small>Confidence {adaptive.confidence}%</small></div><h3>Understanding check</h3>{lesson.checks[checkIndex] ? <><p>{lesson.checks[checkIndex].prompt}</p><div className="answer-row"><input maxLength={300} value={studentAnswer} onChange={e => setStudentAnswer(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submitAnswer(); }} placeholder="Type your answer" aria-label="Your answer"/><button className="primary" disabled={!studentAnswer.trim()} onClick={submitAnswer}>Check Answer</button></div></> : <p>🎉 You completed this lesson’s checks. Final mastery: <strong>{session.masteryScore}%</strong>.</p>}{feedback && <div className="tt-notice feedback-box" role="status">{feedback}</div>}</div>}
+      </section>}
+
+      <section className="ai-teacher-card panel">
+        <div className="ai-copy"><div className="ai-label">🤖 ALWAYS READY TO HELP</div><h2>Ask your AI teacher</h2><p>Ask a question about <strong>{chapter?.title || subject || 'your lesson'}</strong>. I’ll keep the explanation simple and age-appropriate.</p><div className="ai-input-row"><input maxLength={500} value={question} onChange={e => setQuestion(e.target.value)} placeholder={`Ask about ${chapter?.title || subject || 'your lesson'}`} onKeyDown={e => { if (e.key === 'Enter') askTutor(); }} aria-label="Question for your AI teacher"/><button className="primary" disabled={!question.trim()} onClick={askTutor}>Ask ✨</button></div><div className="voice-row"><button className={listening ? 'voice-button active' : 'voice-button'} onClick={() => void startVoice()} aria-pressed={listening}>{listening ? '■ Stop listening' : '🎙 Ask by voice'}</button>{speaking && <button className="voice-button" onClick={stopVoiceReply}>🔇 Stop reply</button>}<small className="voice-status" role="status">{voiceStatus}</small></div></div>
+        <div className="ai-robot" aria-hidden="true"><div className="robot-face">🤖</div><div className="robot-bubble">“Let’s learn<br/>together!”</div></div>
+        {feedback && !session && <div className="ai-response" role="status"><strong>{teacherName || 'Your AI teacher'}</strong><span>{feedback}</span></div>}
+      </section>
+    </main>
+    <footer className="child-footer"><span>Gurukulam AI</span> · Parent-controlled learning environment · Made for curious minds 🌱</footer>
   </div>;
 }
