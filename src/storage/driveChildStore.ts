@@ -17,17 +17,16 @@ const timetableFileName = (childId: string) => `${childId}-timetable.json`;
 export async function loadChildrenFromDrive(token: string): Promise<DriveChildRecord[]> {
   const { childrenId } = await ensureGurukulamFolders(token);
   const files = await listChildFiles(token, childrenId);
-  const records: DriveChildRecord[] = [];
-  for (const file of files) {
+  const childFiles = files.filter(file => file.name.endsWith('.json') && !file.name.endsWith('-timetable.json') && !file.name.endsWith('-learning-workspace.json'));
+  const records = await Promise.all(childFiles.map(async file => {
     try {
-      if (!file.name.endsWith('.json') || file.name.endsWith('-timetable.json')) continue;
       const record = await readFile<DriveChildRecord>(token, file.id);
-      if (record?.id && record?.name !== undefined) records.push(record);
+      return record?.id && record?.name !== undefined ? record : null;
     } catch {
-      // Ignore malformed/unreadable records; the UI remains usable.
+      return null;
     }
-  }
-  return records;
+  }));
+  return records.filter((record): record is DriveChildRecord => Boolean(record));
 }
 
 export async function saveChildToDrive(token: string, child: DriveChildRecord): Promise<DriveFile> {
@@ -41,9 +40,6 @@ export async function removeChildFromDrive(token: string, childId: string): Prom
   const files = await listChildFiles(token, childrenId);
   const timetable = files.find(file => file.name === timetableFileName(childId));
   const child = await findChildFile(token, childrenId, childId);
-
-  // Remove the child-specific learning data first so a successful profile
-  // deletion can never leave the timetable behind.
   if (timetable) await deleteFile(token, timetable.id);
   if (child) await deleteFile(token, child.id);
 }
