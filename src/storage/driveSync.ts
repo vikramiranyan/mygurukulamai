@@ -2,7 +2,7 @@ import { createDriveTokenClient, requestDriveAccess, type DriveTokenClient } fro
 import { loadChildrenFromDrive, removeChildFromDrive, saveChildToDrive, type DriveChildRecord } from './driveChildStore';
 import { loadChildTimetable, saveChildTimetable, updateChildSubjects, type ChildTimetableRecord } from './driveTimetableStore';
 import { loadLearningWorkspace, removeLearningWorkspace, saveLearningWorkspace } from './driveLearningWorkspaceStore';
-import { DriveApiError, probeDriveAccess } from './googleDrive';
+import { DriveApiError, probeDriveAccess, clearDriveFolderCache } from './googleDrive';
 import { normalizeWorkspace, type ChildWorkspace } from '../learningWorkspace';
 
 const SESSION_KEY = 'gurukulam-auth-session';
@@ -11,7 +11,6 @@ const MIGRATION_PROMPT_PREFIX = 'gurukulam-drive-local-migration-prompted:';
 function readJson<T>(key: string, fallback: T): T {
   try { return JSON.parse(sessionStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; }
 }
-function currentUserId(): string { return readJson<{ user?: { id?: string } }>(SESSION_KEY, {}).user?.id || ''; }
 function migrationPromptKey(userId: string): string { return `${MIGRATION_PROMPT_PREFIX}${encodeURIComponent(userId)}`; }
 function migrationWasPrompted(userId: string): boolean {
   try { return Boolean(userId && sessionStorage.getItem(migrationPromptKey(userId)) === '1'); } catch { return false; }
@@ -85,9 +84,6 @@ export class DriveSyncController {
 
   authorize(): void {
     if (!this.client) throw new Error('Google Drive authorization is not ready');
-    // Do not maintain a client-side "grant" flag. Google's OAuth grant is the
-    // source of truth. An empty prompt reuses an existing grant and only shows
-    // consent when Google determines that consent is actually required.
     requestDriveAccess(this.client, '');
   }
 
@@ -107,13 +103,10 @@ export class DriveSyncController {
 
   private async requireToken(): Promise<string> {
     if (!this.client) throw new Error('Google Drive authorization is not ready');
-    if (this.token) {
-      try { await probeDriveAccess(this.token); return this.token; }
-      catch (error) {
-        if (error instanceof DriveApiError && (error.status === 401 || error.status === 403)) this.token = '';
-        else throw error;
-      }
-    }
+    // The token was already validated when Google granted it. Avoid a network
+    // probe before every Drive operation; retry with a fresh grant only after
+    // an actual Drive request reports an authorization failure.
+    if (this.token) return this.token;
     if (!this.waitingForToken) this.waitingForToken = this.requestTokenForCurrentGrant().finally(() => { this.waitingForToken = null; });
     return this.waitingForToken;
   }
@@ -158,21 +151,20 @@ export class DriveSyncController {
     }
 
     markMigrationPrompted(userId);
-    const confirmed = window.confirm(
-      `Gurukulam AI found ${meaningful.length} existing child record${meaningful.length === 1 ? '' : 's'} on this device.\n\nUpload ${meaningful.length === 1 ? 'it' : 'them'} to your Google Drive so your learning data is available across devices?\n\nChoose Cancel to keep the local draft only.`,
-    );
+    const confirmed = window.confirm(`Gurukulam AI found ${meaningful.length} existing child record${meaningful.length === 1 ? '' : 's'} on this device.\n\nUpload ${meaningful.length === 1 ? 'it' : 'them'} to your Google Drive so your learning data is available across devices?\n\nChoose Cancel to keep the local draft only.`);
     if (!confirmed) return;
 
     try {
       const remote = await loadChildrenFromDrive(this.token);
       const remoteIds = new Set(remote.map(child => child.id));
-      for (const child of meaningful) if (!remoteIds.has(child.id)) { await saveChildToDrive(this.token, child); remoteIds.add(child.id); }
+      await Promise.all(meaningful.filter(child => !remoteIds.has(child.id)).map(child => saveChildToDrive(this.token, child)));
       if (unMigratable.length) localStorage.setItem(localKey, JSON.stringify(unMigratable));
       else { localStorage.removeItem(localKey); localStorage.removeItem(`gurukulam:${encodeURIComponent(userId)}:active-child`); }
     } catch (error) { onError(error); }
   }
 
   reset(): void {
+    clearDriveFolderCache(this.token || undefined);
     this.rejectToken?.(new Error('Google Drive session ended'));
     this.configurationVersion += 1;
     this.token = '';
