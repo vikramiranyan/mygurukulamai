@@ -14,9 +14,7 @@ const emptyWorkspace: ChildWorkspace = { teachers: [], subjects: [], chapters: [
 function teacherNameFor(subject: string, workspace: ChildWorkspace): string | null {
   return workspace.teachers.find(t => t.enabled && t.subjects.includes(subject))?.name || null;
 }
-function isUploadedChapter(chapter: ChapterRecord): chapter is ChapterRecord {
-  return Array.isArray(chapter.pages);
-}
+function isUploadedChapter(chapter: ChapterRecord): chapter is ChapterRecord { return Array.isArray(chapter.pages); }
 function uploadedPages(chapter: ChapterRecord): ChapterPage[] { return isUploadedChapter(chapter) ? chapter.pages : []; }
 function chapterLesson(chapter: ChapterRecord, targetPages?: number[]): LessonContent {
   const base = getLessonContent(chapter.id, chapter.title);
@@ -93,7 +91,6 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
     const safeQuestion = decision.normalized || rawQuestion.trim();
     const q = safeQuestion.toLocaleLowerCase();
     let response = '';
-
     if (/\b(numbers?|count|counting)\b/.test(q) && /(10|ten|upto|up to|1-10|one to ten)/.test(q)) {
       response = `${teacherName || 'Your teacher'} says: Great! Let's learn numbers from 1 to 10.\n\n1 — one\n2 — two\n3 — three\n4 — four\n5 — five\n6 — six\n7 — seven\n8 — eight\n9 — nine\n10 — ten\n\nLet's count together: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10! 🎉\n\nNow your turn: What number comes after 5? Type the answer, or use the microphone and say it. I will check your answer and then teach you the next step.`;
     } else if (/\b(alphabet|letters|a to z|a-z)\b/.test(q)) {
@@ -131,7 +128,7 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
     const correct = gradeAnswer(studentAnswer, check.expected);
     const diagnosis = diagnoseMistake(studentAnswer, check.expected);
     const nextAnswers = [...answers, { questionId: check.id, correct }];
-    const nextSignals = [...signals, { correct, attempts }];
+    const nextSignals: LearningSignal[] = [...signals, { questionId: check.id, correct, attempts }];
     const score = scoreAnswers(nextAnswers); const phase = nextPhase(score);
     const nextAdaptive = recommendNextStep(nextSignals, score / 100);
     const message = correct ? `Correct! Your current mastery is ${score}%. ${nextAdaptive.band === 'advance' ? 'You are ready for a challenge!' : 'Let’s keep building this skill.'}` : `${remediationMessage(chapter?.title || subject, diagnosis)} ${nextAdaptive.band === 'reteach' ? 'We will slow down and try a simpler example.' : 'Then we will try another check.'}`;
@@ -150,7 +147,6 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
         <button className="dashboard-signout" onClick={signout}>⇥ <span>Sign out</span></button>
       </div>
     </header>
-
     <main className="child-main">
       <section className="child-hero panel">
         <div className="child-hero-copy">
@@ -168,12 +164,10 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
         </div>
         <div className="hero-sparkles" aria-hidden="true">✦　✧　★</div>
       </section>
-
       <section className="child-section-head">
         <div><span>YOUR DAY</span><h2>Let’s see what’s happening 🌈</h2></div>
         <div className="section-path">Today’s learning path</div>
       </section>
-
       <div className="quick-grid">
         <section className="quick-card quick-today panel">
           <div className="quick-icon">📖</div><div className="quick-label">TODAY</div><h3>Today’s Teaching</h3>
@@ -187,21 +181,19 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
           <div className="quick-icon">🏆</div><div className="quick-label">GET READY</div><h3>Tests & Exams</h3>
           {workspace.tests.length ? <div className="quick-list">{workspace.tests.slice(0, 2).map(item => <div key={item.id}><strong>{item.title}</strong><small>{item.type} · {item.subject} · {item.date}</small></div>)}</div> : <p>No upcoming tests have been scheduled.</p>}
         </section>
-        <section className="quick-card quick-teachers panel">
+        <section className="quick-card quick-teachers panel" data-active-teacher={teacherName || ''} data-active-subject={subject}>
           <div className="quick-icon">👩🏽‍🏫</div><div className="quick-label">MY TEAM</div><h3>My Teachers</h3>
-          {workspace.teachers.filter(t => t.enabled).length ? <div className="quick-list">{workspace.teachers.filter(t => t.enabled).slice(0, 2).map(t => <div key={t.id}><strong>{t.name}</strong><small>{t.subjects.join(', ')} · {t.role}</small></div>)}</div> : <p>Your parent has not configured teacher details yet.</p>}
+          {workspace.teachers.filter(t => t.enabled).length ? <div className="quick-list">{workspace.teachers.filter(t => t.enabled).slice(0, 2).map(t => <div key={t.id} data-teacher-id={t.id} data-teacher-name={t.name} data-teacher-subjects={t.subjects.join(', ')} data-teacher-role={t.role}><strong>{t.name}</strong><small>{t.subjects.join(', ')} · {t.role}</small></div>)}</div> : <p>Your parent has not configured teacher details yet.</p>}
         </section>
       </div>
-
       <section className="learning-path panel">
         <div className="learning-path-title"><div className="path-icon">🧭</div><div><span>LEARNING PATH</span><h2>Choose what to learn</h2></div></div>
         <div className="path-controls">
-          <div className="path-block"><label>1 · SUBJECT</label>{availableSubjects.length ? <div className="subject-pills">{availableSubjects.map(item => <button key={item} className={subject === item ? 'subject-pill active' : 'subject-pill'} onClick={() => resetForSubject(item)}>{item}</button>)}</div> : <p>No subjects are configured yet. Ask your parent to add subjects from Time Table / Subjects.</p>}</div>
+          <div className="path-block"><label>1 · SUBJECT</label>{availableSubjects.length ? <div className="subject-pills">{availableSubjects.map(item => <button key={item} className={subject === item ? 'subject-pill active' : 'subject-pill'} data-subject={item} onClick={() => resetForSubject(item)}>{item}</button>)}</div> : <p>No subjects are configured yet. Ask your parent to add subjects from Time Table / Subjects.</p>}</div>
           <div className="path-arrow" aria-hidden="true">→</div>
           <div className="path-block"><label>2 · CHAPTER</label>{customChapters.length ? <div className="chapter-pills">{customChapters.map(item => <button key={item.id} className={chapter?.id === item.id ? 'chapter-pill active' : 'chapter-pill'} onClick={() => resetChapter(item)}><strong>{item.title}</strong><small>{item.pages.length} pages</small></button>)}</div> : <p>No chapter has been uploaded for {subject || 'this subject'} yet. Your parent can add it from Parent Dashboard → Subjects.</p>}</div>
         </div>
       </section>
-
       {chapter && lesson && <section className="lesson-card panel">
         <div className="lesson-heading"><div><span>📘 YOUR LESSON</span><h2>{lesson.title}</h2></div>{session && <div className="mastery-badge">⭐ {session.masteryScore}% mastery</div>}</div>
         {currentTarget && <div className="tt-notice lesson-target"><strong>Today’s target:</strong> {currentTarget.topic}{currentTarget.scope === 'pages' && currentTarget.pageNumbers?.length ? ` · Pages ${currentTarget.pageNumbers.join(', ')}` : ''}</div>}
@@ -209,7 +201,6 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
         <div className="lesson-body"><div><p className="lesson-goal"><strong>🎯 Today’s goal:</strong> {lesson.objective}</p><p>{lesson.explanation}</p></div><div className="example-box"><span>💡 TRY THIS</span><ul>{lesson.examples.map((example, index) => <li key={`${index}-${example}`}>{example}</li>)}</ul></div></div>
         {!session ? <button className="primary lesson-start" disabled={!teacherName} onClick={begin}>▶ Start Lesson</button> : <div className="lesson-session"><div className="session-summary"><strong>{plan.mode.toUpperCase()}</strong><span>{adaptive.reason}</span><small>Confidence {adaptive.confidence}%</small></div><h3>Understanding check</h3>{lesson.checks[checkIndex] ? <><p>{lesson.checks[checkIndex].prompt}</p><div className="answer-row"><input maxLength={300} value={studentAnswer} onChange={e => setStudentAnswer(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submitAnswer(); }} placeholder="Type your answer" aria-label="Your answer"/><button className="primary" disabled={!studentAnswer.trim()} onClick={submitAnswer}>Check Answer</button></div></> : <p>🎉 You completed this lesson’s checks. Final mastery: <strong>{session.masteryScore}%</strong>.</p>}{feedback && <div className="tt-notice feedback-box" role="status">{feedback}</div>}</div>}
       </section>}
-
       <section className="ai-teacher-card panel">
         <div className="ai-copy"><div className="ai-label">🤖 ALWAYS READY TO HELP</div><h2>Ask your AI teacher</h2><p>Ask a question about <strong>{chapter?.title || subject || 'your lesson'}</strong>. I’ll keep the explanation simple and age-appropriate.</p><div className="ai-input-row"><input maxLength={500} value={question} onChange={e => setQuestion(e.target.value)} placeholder={`Ask about ${chapter?.title || subject || 'your lesson'}`} onKeyDown={e => { if (e.key === 'Enter') askTutor(); }} aria-label="Question for your AI teacher"/><button className="primary" disabled={!question.trim()} onClick={askTutor}>Ask ✨</button></div><div className="voice-row"><button className={listening ? 'voice-button active' : 'voice-button'} onClick={() => void startVoice()} aria-pressed={listening}>{listening ? '■ Stop listening' : '🎙 Ask by voice'}</button>{speaking && <button className="voice-button" onClick={stopVoiceReply}>🔇 Stop reply</button>}<small className="voice-status" role="status">{voiceStatus}</small></div></div>
         <div className="ai-robot" aria-hidden="true"><div className="robot-face">🤖</div><div className="robot-bubble">“Let’s learn<br/>together!”</div></div>
