@@ -1,20 +1,26 @@
 (() => {
+  'use strict';
   const GUIDE_ID = 'gurukulam-immersive-layer';
   const STYLE_ID = 'gurukulam-teacher-context-style';
 
-  function clean(value) {
-    return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  const clean = (value, max = 160) => String(value || '').replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+
+  function teacherFromRow(row) {
+    if (!row) return null;
+    const name = clean(row.querySelector('strong')?.textContent, 100);
+    const details = clean(row.querySelector('small')?.textContent, 160);
+    if (!name) return null;
+    const parts = details.split(' · ');
+    return { name, subjects: parts[0] || '', role: parts.slice(1).join(' · ') || 'Personal AI Teacher' };
   }
 
-  function teacherFromParentDashboard(page) {
-    const teacherRow = page.querySelector('.quick-teachers .quick-list > div');
-    const name = clean(teacherRow?.querySelector('strong')?.textContent);
-    const details = clean(teacherRow?.querySelector('small')?.textContent);
-    if (name) {
-      const parts = details.split(' · ');
-      return { name, subjects: parts[0] || '', role: parts.slice(1).join(' · ') || 'Personal AI Teacher' };
-    }
-    return null;
+  function teacherForCurrentSubject(page) {
+    const activeSubject = clean(page.querySelector('.subject-pill.active')?.textContent, 100);
+    const rows = [...page.querySelectorAll('.quick-teachers .quick-list > div')];
+    const teachers = rows.map(teacherFromRow).filter(Boolean);
+    if (!teachers.length) return null;
+    if (!activeSubject) return teachers[0];
+    return teachers.find(teacher => teacher.subjects.split(',').map(item => clean(item, 100)).includes(activeSubject)) || null;
   }
 
   function applyContext() {
@@ -22,10 +28,13 @@
     const guide = document.getElementById(GUIDE_ID);
     if (!page || !guide) return;
 
-    const teacher = teacherFromParentDashboard(page);
+    const teacher = teacherForCurrentSubject(page);
     if (!teacher) {
       guide.hidden = true;
       guide.setAttribute('aria-hidden', 'true');
+      delete guide.dataset.teacherName;
+      delete guide.dataset.teacherRole;
+      delete guide.dataset.teacherSubjects;
       return;
     }
 
@@ -36,7 +45,6 @@
     const badge = guide.querySelector('.ga-torso b');
     const toggle = guide.querySelector('.ga-toggle');
     const character = guide.querySelector('.ga-character');
-
     if (greeting) greeting.textContent = `Hi, ${teacher.name}! 👋`;
     if (message) message.textContent = teacher.role === 'Personal AI Teacher'
       ? `I am your ${teacher.name}. I will guide you step by step.`
@@ -49,21 +57,23 @@
     guide.dataset.teacherSubjects = teacher.subjects;
   }
 
-  function mountStyle() {
-    if (document.getElementById(STYLE_ID)) return;
-    const style = document.createElement('style');
-    style.id = STYLE_ID;
-    style.textContent = `#${GUIDE_ID}[hidden]{display:none!important}`;
-    document.head.appendChild(style);
-  }
-
   function run() {
-    mountStyle();
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement('style');
+      style.id = STYLE_ID;
+      style.textContent = `#${GUIDE_ID}[hidden]{display:none!important}`;
+      document.head.appendChild(style);
+    }
     applyContext();
   }
 
-  const observer = new MutationObserver(run);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  window.addEventListener('load', run);
-  window.setTimeout(run, 800);
+  let queued = false;
+  const queueRun = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; run(); });
+  };
+  new MutationObserver(queueRun).observe(document.documentElement, { childList: true, subtree: true });
+  window.addEventListener('load', queueRun, { once: true });
+  queueRun();
 })();
