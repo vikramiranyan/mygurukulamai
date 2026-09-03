@@ -58,20 +58,21 @@ export function createDriveTokenClient(
       const error = new Error(detail || 'Google Drive authorization failed');
       (error as Error & { code?: string }).code = code;
 
-      // A returning user should not see the Drive consent dialog on every
-      // navigation/reload. If Google says the silent grant is no longer usable,
-      // clear the cached grant and perform exactly one normal authorization.
       if (hasStoredGrant() && code && SILENT_RECOVERY_ERRORS.has(code)) {
         clearStoredGrant();
-        try { google.accounts.oauth2.initTokenClient({
-          client_id: clientId,
-          scope: GOOGLE_DRIVE_SCOPE,
-          include_granted_scopes: true,
-          callback: (retry: DriveTokenResponse) => {
-            if (retry.access_token) { markStoredGrant(); callback(retry.access_token); return; }
-            onError?.(error);
-          },
-        }).requestAccessToken({ prompt: '' }); return; } catch { /* fall through */ }
+        try {
+          const retryClient = google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope: GOOGLE_DRIVE_SCOPE,
+            include_granted_scopes: true,
+            callback: (retry: DriveTokenResponse) => {
+              if (retry.access_token) { markStoredGrant(); callback(retry.access_token); return; }
+              onError?.(error);
+            },
+          });
+          retryClient.requestAccessToken({ prompt: '' });
+          return;
+        } catch { /* fall through */ }
       }
       onError?.(error);
     },
@@ -79,7 +80,9 @@ export function createDriveTokenClient(
 }
 
 /** Request a Drive token. Existing grants are renewed silently; first-time users
- * receive the normal Google authorization flow. */
+ * receive the normal Google authorization flow. An explicit empty prompt from
+ * older callers is treated as the default so it cannot re-open consent. */
 export function requestDriveAccess(client: DriveTokenClient, prompt?: DrivePrompt) {
-  client.requestAccessToken({ prompt: prompt ?? (hasStoredGrant() ? 'none' : '') });
+  const effectivePrompt = prompt && prompt !== '' ? prompt : (hasStoredGrant() ? 'none' : '');
+  client.requestAccessToken({ prompt: effectivePrompt });
 }
