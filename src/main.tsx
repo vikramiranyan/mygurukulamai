@@ -27,10 +27,7 @@ function Login({ setSession }: { setSession: (s: AuthSession) => void }) {
       if (cancelled || !window.google || !googleButtonRef.current) return;
       (window.google.accounts.id.initialize as any)({
         client_id: GOOGLE_CLIENT_ID,
-        auto_select: true,
-        use_fedcm_for_button: true,
-        button_auto_select: true,
-        callback: response => {
+        callback: (response: { credential: string }) => {
           const session = credentialToSession(response.credential, GOOGLE_CLIENT_ID);
           if (session) setSession(session);
         }
@@ -43,9 +40,7 @@ function Login({ setSession }: { setSession: (s: AuthSession) => void }) {
         text: 'continue_with',
         shape: 'pill',
         logo_alignment: 'left',
-        width: Math.min(400, Math.max(260, googleButtonRef.current.clientWidth || 360)),
-        use_fedcm_for_button: true,
-        button_auto_select: true
+        width: Math.min(400, Math.max(260, googleButtonRef.current.clientWidth || 360))
       });
     };
     if (window.google) init();
