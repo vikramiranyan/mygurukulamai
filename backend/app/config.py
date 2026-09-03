@@ -14,16 +14,9 @@ class Settings(BaseSettings):
     jwt_audience: str = "gurukulam-ai-parent"
     auto_create_schema: bool = False
     secure_headers: bool = True
-    allowed_hosts: str = "*"
-
-    # Server-side GitHub registry configuration. Never expose these to the frontend.
-    github_token: str = ""
-    github_repository: str = "vikramiranyan/mygurukulamai"
-    github_drive_registry_path: str = "data/drive-access-users.json"
-    github_branch: str = "main"
-    drive_registry_hmac_secret: str = ""
-    # Base64url-encoded 32-byte AES-256-GCM key. Keep only in the backend secret store.
-    drive_registry_encryption_key: str = ""
+    # Development-safe default. Production must explicitly provide the backend
+    # host allowlist; wildcard hosts are intentionally not accepted.
+    allowed_hosts: str = "localhost,127.0.0.1"
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
@@ -34,6 +27,16 @@ class Settings(BaseSettings):
         if not origins:
             raise ValueError("frontend_origins must contain at least one origin")
         return ",".join(origins)
+
+    @field_validator("allowed_hosts")
+    @classmethod
+    def validate_allowed_hosts(cls, value: str) -> str:
+        hosts = [item.strip() for item in value.split(",") if item.strip()]
+        if not hosts:
+            raise ValueError("allowed_hosts must contain at least one host")
+        if "*" in hosts:
+            raise ValueError("allowed_hosts must not contain wildcard '*'")
+        return ",".join(hosts)
 
     @property
     def cors_origins(self) -> list[str]:
