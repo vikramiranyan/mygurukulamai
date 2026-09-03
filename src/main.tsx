@@ -20,34 +20,57 @@ function Brand({ child = false }: { child?: boolean }) { return <div className="
 
 function Login({ setSession }: { setSession: (s: AuthSession) => void }) {
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const [googleReady, setGoogleReady] = useState(false);
+  const [googleError, setGoogleError] = useState('');
   useEffect(() => {
     let timer: number | undefined;
     let cancelled = false;
     const init = () => {
       if (cancelled || !window.google || !googleButtonRef.current) return;
-      (window.google.accounts.id.initialize as any)({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: (response: { credential: string }) => {
-          const session = credentialToSession(response.credential, GOOGLE_CLIENT_ID);
-          if (session) setSession(session);
-        }
-      });
-      googleButtonRef.current.innerHTML = '';
-      (window.google.accounts.id as any).renderButton(googleButtonRef.current, {
-        type: 'standard',
-        theme: 'outline',
-        size: 'large',
-        text: 'continue_with',
-        shape: 'pill',
-        logo_alignment: 'left',
-        width: Math.min(400, Math.max(260, googleButtonRef.current.clientWidth || 360))
-      });
+      try {
+        setGoogleError('');
+        (window.google.accounts.id.initialize as any)({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: (response: { credential?: string }) => {
+            if (!response?.credential) {
+              setGoogleError('Google did not return a sign-in credential. Please try again.');
+              return;
+            }
+            const session = credentialToSession(response.credential, GOOGLE_CLIENT_ID);
+            if (!session) {
+              setGoogleError('Google sign-in was received but could not be verified. Please try again.');
+              return;
+            }
+            setSession(session);
+          },
+          cancel_on_tap_outside: false
+        });
+        googleButtonRef.current.innerHTML = '';
+        (window.google.accounts.id as any).renderButton(googleButtonRef.current, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          text: 'continue_with',
+          shape: 'pill',
+          logo_alignment: 'left',
+          width: Math.min(400, Math.max(260, googleButtonRef.current.clientWidth || 360))
+        });
+        setGoogleReady(true);
+      } catch (error) {
+        console.error('Google Identity Services initialization failed:', error);
+        setGoogleError('Google Sign-In could not be loaded. Please refresh and try again.');
+      }
     };
-    if (window.google) init();
-    else timer = window.setInterval(() => { if (window.google) { if (timer) window.clearInterval(timer); init(); } }, 100);
+    if (window.google?.accounts?.id) init();
+    else timer = window.setInterval(() => {
+      if (window.google?.accounts?.id) {
+        if (timer) window.clearInterval(timer);
+        init();
+      }
+    }, 100);
     return () => { cancelled = true; if (timer) window.clearInterval(timer); };
   }, [setSession]);
-  return <div className="login-screen"><header className="login-header"><div className="login-brand"><span className="login-logo">G</span><span><strong>Gurukulam AI</strong><small>Learning made joyful</small></span></div><span className="login-parent-badge">🔒 Parent-controlled</span></header><div className="login-content"><section className="login-hero"><div className="login-copy"><span className="login-eyebrow">A HAPPY PLACE TO LEARN</span><h1>Every lesson can become an adventure.</h1><p>Welcome to a warm, playful learning world where your child can learn, explore and grow with a personal AI teacher.</p></div><div className="login-art-card"><img src="./assets/gurukulam-two-girls-3d.png" alt="Two girls learning" /></div></section><section className="login-card"><div className="login-card-icon">🪔</div><span className="login-card-eyebrow">PARENT SIGN-IN</span><h2>Let’s start the adventure!</h2><p>Sign in securely to set up and guide your child’s learning journey.</p><div className="login-google-button-shell" ref={googleButtonRef} aria-label="Continue with Google" /><small className="login-privacy">Your account keeps your child’s learning space private and parent-controlled.</small></section></div></div>;
+  return <div className="login-screen"><header className="login-header"><div className="login-brand"><span className="login-logo">G</span><span><strong>Gurukulam AI</strong><small>Learning made joyful</small></span></div><span className="login-parent-badge">🔒 Parent-controlled</span></header><div className="login-content"><section className="login-hero"><div className="login-copy"><span className="login-eyebrow">A HAPPY PLACE TO LEARN</span><h1>Every lesson can become an adventure.</h1><p>Welcome to a warm, playful learning world where your child can learn, explore and grow with a personal AI teacher.</p></div><div className="login-art-card"><img src="./assets/gurukulam-two-girls-3d.png" alt="Two girls learning" /></div></section><section className="login-card"><div className="login-card-icon">🪔</div><span className="login-card-eyebrow">PARENT SIGN-IN</span><h2>Let’s start the adventure!</h2><p>Sign in securely to set up and guide your child’s learning journey.</p><div className="login-google-button-shell" ref={googleButtonRef} aria-label="Continue with Google" />{googleError && <div className="login-google-error" role="alert">{googleError}</div>}{!googleReady && !googleError && <small className="login-google-loading">Loading Google Sign-In…</small>}<small className="login-privacy">Your account keeps your child’s learning space private and parent-controlled.</small></section></div></div>;
 }
 
 function ChildAvatar({ gender }: { gender: string }) { if (gender === 'Female') return <span className="child-avatar child-avatar-female"><img src="./assets/female-child-avatar.svg" alt="Girl child" /></span>; if (gender === 'Male') return <span className="child-avatar child-avatar-male"><img src="./assets/male-child-avatar.svg" alt="Boy child" /></span>; return <span className="child-avatar child-avatar-neutral">👧</span>; }
@@ -112,26 +135,17 @@ function App() {
     if (!session || !workspaceReady) return;
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
-      const entries = Object.entries(workspace);
-      void Promise.all(entries.map(async ([childIdValue, childWorkspace]) => {
-        try { await driveSync.saveWorkspace(childIdValue, childWorkspace); }
-        catch (error) { console.error(`Learning workspace sync failed for ${childIdValue}:`, error); }
-      }));
-    }, 900);
+      void driveSync.saveAllWorkspace(workspace).catch(error => console.error('Workspace save failed:', error));
+    }, 600);
     return () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); };
-  }, [workspace, workspaceReady, session?.user.id, driveSync]);
+  }, [workspace, workspaceReady, session, driveSync]);
 
-  useEffect(() => {
-    if (!session) return;
-    const checkExpiry = () => { if (!isSessionValid(session)) { driveSync.reset(); setSession(null); } };
-    checkExpiry(); const timer = window.setInterval(checkExpiry, 30_000); return () => window.clearInterval(timer);
-  }, [session, driveSync]);
-
+  const signout = () => { driveSync.reset(); setSession(null); };
   if (!session) return <Login setSession={setSession} />;
-  const signout = () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); driveSync.reset(); setSession(null); setView('child'); };
-  const child = children.find(item => item.id === active) || children[0] || blankChild();
-  const childWorkspace = workspace[child.id] || defaultWorkspace();
-  return view === 'parents' ? <Parents children={children} setChildren={setChildren} active={active} setActive={setActive} back={() => setView('child')} signout={signout} driveSync={driveSync} workspace={workspace} setWorkspace={setWorkspace} /> : <LearningHome child={child} onParents={() => setView('parents')} signout={signout} workspace={childWorkspace} />;
+  const child = children.find(c => c.id === active) || children[0];
+  return view === 'parents'
+    ? <Parents children={children} setChildren={setChildren} active={active} setActive={setActive} back={() => setView('child')} signout={signout} driveSync={driveSync} workspace={workspace} setWorkspace={setWorkspace} />
+    : <LearningHome child={child} children={children} active={active} setActive={setActive} workspace={child ? workspace[child.id] || defaultWorkspace() : defaultWorkspace()} setWorkspace={next => { if (!child) return; setWorkspace(current => ({ ...current, [child.id]: next })); }} onParents={() => setView('parents')} onSignOut={signout} />;
 }
 
-createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);
+createRoot(document.getElementById('root')!).render(<App />);
