@@ -12,7 +12,7 @@ import { LearningHome } from './child/LearningHome';
 import { defaultWorkspace, type ChildWorkspace, type LearningWorkspace } from './learningWorkspace';
 import type { Child } from './types/parent';
 
-const GOOGLE_CLIENT_ID = '96891639304-4hi2fjfnleq59tf3gflu9c4kei1o31.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '96891639304-4hi2fjfnleq59oktf3gflu9c4kei1o31.apps.googleusercontent.com';
 type Menu = 'children' | 'timetable' | 'teachers' | 'subjects' | 'tests' | 'teaching' | 'homework';
 function childId() { return `CHD-${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`; }
 function blankChild(): Child { return { id: childId(), name: '', dob: '', gender: '', grade: '', section: '', school: '', board: '' }; }
@@ -32,27 +32,16 @@ function Login({ setSession }: { setSession: (s: AuthSession) => void }) {
         (window.google.accounts.id.initialize as any)({
           client_id: GOOGLE_CLIENT_ID,
           callback: (response: { credential?: string }) => {
-            if (!response?.credential) {
-              setGoogleError('Google did not return a sign-in credential. Please try again.');
-              return;
-            }
+            if (!response?.credential) { setGoogleError('Google did not return a sign-in credential. Please try again.'); return; }
             const session = credentialToSession(response.credential, GOOGLE_CLIENT_ID);
-            if (!session) {
-              setGoogleError('Google sign-in was received but could not be verified. Please try again.');
-              return;
-            }
+            if (!session) { setGoogleError('Google sign-in was received but could not be verified. Please try again.'); return; }
             setSession(session);
           },
           cancel_on_tap_outside: false
         });
         googleButtonRef.current.innerHTML = '';
         (window.google.accounts.id as any).renderButton(googleButtonRef.current, {
-          type: 'standard',
-          theme: 'outline',
-          size: 'large',
-          text: 'continue_with',
-          shape: 'pill',
-          logo_alignment: 'left',
+          type: 'standard', theme: 'filled_blue', size: 'large', text: 'continue_with', shape: 'pill', logo_alignment: 'left',
           width: Math.min(400, Math.max(260, googleButtonRef.current.clientWidth || 360))
         });
         setGoogleReady(true);
@@ -63,10 +52,7 @@ function Login({ setSession }: { setSession: (s: AuthSession) => void }) {
     };
     if (window.google?.accounts?.id) init();
     else timer = window.setInterval(() => {
-      if (window.google?.accounts?.id) {
-        if (timer) window.clearInterval(timer);
-        init();
-      }
+      if (window.google?.accounts?.id) { if (timer) window.clearInterval(timer); init(); }
     }, 100);
     return () => { cancelled = true; if (timer) window.clearInterval(timer); };
   }, [setSession]);
@@ -102,47 +88,35 @@ function App() {
   const [driveSync] = useState(() => new DriveSyncController());
 
   useEffect(() => {
-    if (!session) {
-      driveSync.reset(); setChildren([]); setActive(''); setWorkspace({}); setWorkspaceReady(false); setView('child'); return;
-    }
+    if (!session) { driveSync.reset(); setChildren([]); setActive(''); setWorkspace({}); setWorkspaceReady(false); setView('child'); return; }
     setChildren([]); setActive(''); setWorkspace({}); setWorkspaceReady(false); setView('child');
-
     driveSync.configure(GOOGLE_CLIENT_ID, async () => {
       try {
-        const remote = await driveSync.loadChildren();
-        setChildren(remote); setActive(remote[0]?.id || '');
+        const remote = await driveSync.loadChildren(); setChildren(remote); setActive(remote[0]?.id || '');
         const timetablePairs = await Promise.all(remote.map(async child => { try { return [child.id, await driveSync.loadTimetable(child.id)] as const; } catch { return [child.id, null] as const; } }));
         const workspacePairs = await Promise.all(remote.map(async child => { try { return [child.id, await driveSync.loadWorkspace(child.id)] as const; } catch { return [child.id, null] as const; } }));
-        setWorkspace(() => {
-          const next: LearningWorkspace = {};
-          for (const child of remote) {
-            const remoteWorkspace = workspacePairs.find(pair => pair[0] === child.id)?.[1];
-            const timetable = timetablePairs.find(pair => pair[0] === child.id)?.[1];
-            next[child.id] = remoteWorkspace ? { ...defaultWorkspace(), ...remoteWorkspace } : defaultWorkspace();
-            if (timetable?.subjects?.length) next[child.id].subjects = [...new Set([...(next[child.id].subjects || []), ...timetable.subjects])];
-          }
-          return next;
-        });
-        setWorkspaceReady(true);
-      } catch (error) { console.error('Drive sync failed:', error); setWorkspaceReady(true); }
+        setWorkspace(() => { const next: LearningWorkspace = {}; for (const child of remote) { const remoteWorkspace = workspacePairs.find(([id]) => id === child.id)?.[1]; const timetable = timetablePairs.find(([id]) => id === child.id)?.[1]; next[child.id] = { ...(remoteWorkspace || defaultWorkspace()), subjects: [...new Set([...(remoteWorkspace?.subjects || []), ...(timetable?.subjects || [])])] }; } return next; });
+      } finally { setWorkspaceReady(true); }
     });
   }, [session, driveSync]);
 
   useEffect(() => {
-    if (!session || !workspaceReady) return;
+    if (!workspaceReady || !active) return;
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
-      const child = children.find(c => c.id === active);
-      if (child && workspace[child.id]) void driveSync.saveWorkspace(child.id, workspace[child.id]);
-    }, 500);
+      const current = workspace[active];
+      if (current && driveSync.authorized) void driveSync.saveWorkspace(active, current).catch((error: unknown) => console.error('Workspace autosave failed:', error));
+    }, 700);
     return () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); };
-  }, [workspace, active, children, session, workspaceReady, driveSync]);
+  }, [workspace, active, workspaceReady, driveSync]);
+
+  useEffect(() => () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); }, []);
 
   if (!session) return <Login setSession={setSession} />;
-  if (!workspaceReady) return <div className="loading-screen">Loading your Gurukulam AI space…</div>;
-  const child = children.find(c => c.id === active) || children[0];
-  if (!child) return <Parents children={children} setChildren={setChildren} active={active} setActive={setActive} back={() => setView('child')} signout={() => setSession(null)} driveSync={driveSync} workspace={workspace} setWorkspace={setWorkspace} />;
+  if (!isSessionValid(session)) return <Login setSession={setSession} />;
+  const child = children.find(item => item.id === active) || children[0];
   if (view === 'parents') return <Parents children={children} setChildren={setChildren} active={active} setActive={setActive} back={() => setView('child')} signout={() => setSession(null)} driveSync={driveSync} workspace={workspace} setWorkspace={setWorkspace} />;
+  if (!child) return <div className="app empty-state"><header className="child-topbar"><div className="child-brand-lockup"><div className="child-brand-mark">G<span>AI</span></div><div className="brand"><strong>Gurukulam AI</strong><small>My Learning Space</small></div></div><button className="dashboard-signout" onClick={() => setSession(null)}>⇥ <span>Sign out</span></button></header><main className="empty-child"><div className="empty-illustration">🌱</div><h1>Let’s create your learning space!</h1><p>A grown-up needs to add your profile and learning plan before we begin.</p><button className="primary" onClick={() => setView('parents')}>👨‍👩‍👧 Open Parent Dashboard</button></main></div>;
   return <LearningHome child={child} onParents={() => setView('parents')} signout={() => setSession(null)} workspace={workspace[child.id] || defaultWorkspace()} />;
 }
 
