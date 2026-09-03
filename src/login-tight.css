@@ -9,13 +9,11 @@
   .login-content { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; display: block !important; }
   .login-card { position: absolute !important; left: 71.0% !important; top: 29.0% !important; width: 24.5% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; background: transparent !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; backdrop-filter: none !important; z-index: 10 !important; }
   .login-card-icon, .login-card-eyebrow, .login-card h2, .login-card p, .login-privacy { display: none !important; }
-  .login-google-button-shell { width: 100% !important; min-height: clamp(56px, 6.8vh, 72px) !important; display: flex !important; align-items: center !important; justify-content: center !important; overflow: hidden !important; }
-  .login-google-button-shell > div, .login-google-button-shell iframe { max-width: 100% !important; }
-  .login-google-button { width: 100% !important; min-height: clamp(56px, 6.8vh, 72px) !important; padding: 0 24px !important; border: 1px solid rgba(7, 58, 38, .16) !important; border-radius: 15px !important; background: #0f5132 !important; color: #ffffff !important; font-size: clamp(15px, 1.15vw, 20px) !important; box-shadow: 0 4px 12px rgba(15, 81, 50, .16) !important; backdrop-filter: none !important; }
-  .login-google-button:hover { transform: translateY(-1px) !important; background: #0b4329 !important; box-shadow: 0 6px 16px rgba(15, 81, 50, .22) !important; }
-  .google-g { font-size: clamp(22px, 1.55vw, 28px) !important; }
-  .google-arrow { font-size: clamp(18px, 1.25vw, 23px) !important; color: #ffffff !important; }
-  .login-message-overlay { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+  .login-google-button-shell { width: 100% !important; min-height: clamp(56px, 6.8vh, 72px) !important; display: flex !important; align-items: center !important; justify-content: center !important; overflow: hidden !important; position: relative !important; border: 1px solid rgba(126, 82, 24, .55) !important; border-radius: 18px !important; background: linear-gradient(135deg, #0a4b34 0%, #176b48 58%, #c28a3a 100%) !important; box-shadow: 0 8px 20px rgba(62, 48, 20, .22), inset 0 1px 0 rgba(255,255,255,.28) !important; }
+  .login-google-button-shell::before { content: 'G  Continue with Google'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; font-family: Georgia, 'Times New Roman', serif !important; font-size: clamp(16px, 1.18vw, 20px) !important; font-weight: 700 !important; letter-spacing: .01em !important; color: #fffaf0 !important; text-shadow: 0 1px 2px rgba(0,0,0,.25); z-index: 1; pointer-events: none; }
+  .login-google-button-shell::after { content: ''; position: absolute; inset: 2px; border: 1px solid rgba(255,248,224,.35); border-radius: 16px; z-index: 1; pointer-events: none; }
+  .login-google-button-shell > div { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; z-index: 3 !important; opacity: 0 !important; }
+  .login-google-button-shell iframe { width: 100% !important; height: 100% !important; max-width: 100% !important; opacity: 0 !important; cursor: pointer !important; }
 }
 
 @media (max-width: 900px) {
@@ -24,13 +22,11 @@
   .login-content { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; display: block !important; }
   .login-card { position: absolute !important; left: 9% !important; top: 57.15% !important; width: 82% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; background: transparent !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; backdrop-filter: none !important; z-index: 10 !important; }
   .login-card-icon, .login-card-eyebrow, .login-card h2, .login-card p, .login-privacy { display: none !important; }
-  .login-google-button-shell { width: 100% !important; min-height: clamp(56px, 7vw, 68px) !important; display: flex !important; align-items: center !important; justify-content: center !important; overflow: hidden !important; }
-  .login-google-button-shell > div, .login-google-button-shell iframe { max-width: 100% !important; }
-  .login-google-button { width: 100% !important; min-height: clamp(56px, 7vw, 68px) !important; padding: 0 clamp(16px, 4vw, 24px) !important; border: 1px solid rgba(7, 58, 38, .16) !important; border-radius: 15px !important; background: #0f5132 !important; color: #ffffff !important; font-size: clamp(15px, 4vw, 19px) !important; box-shadow: 0 4px 12px rgba(15, 81, 50, .16) !important; }
-  .login-google-button:hover { transform: translateY(-1px) !important; background: #0b4329 !important; box-shadow: 0 6px 16px rgba(15, 81, 50, .22) !important; }
-  .google-g { font-size: clamp(22px, 6vw, 28px) !important; }
-  .google-arrow { font-size: clamp(18px, 5vw, 23px) !important; color: #ffffff !important; }
-  .login-message-overlay { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+  .login-google-button-shell { width: 100% !important; min-height: clamp(56px, 7vw, 68px) !important; display: flex !important; align-items: center !important; justify-content: center !important; overflow: hidden !important; position: relative !important; border: 1px solid rgba(126, 82, 24, .55) !important; border-radius: 18px !important; background: linear-gradient(135deg, #0a4b34 0%, #176b48 58%, #c28a3a 100%) !important; box-shadow: 0 8px 20px rgba(62, 48, 20, .22), inset 0 1px 0 rgba(255,255,255,.28) !important; }
+  .login-google-button-shell::before { content: 'G  Continue with Google'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; font-family: Georgia, 'Times New Roman', serif !important; font-size: clamp(16px, 4.3vw, 20px) !important; font-weight: 700 !important; letter-spacing: .01em !important; color: #fffaf0 !important; text-shadow: 0 1px 2px rgba(0,0,0,.25); z-index: 1; pointer-events: none; }
+  .login-google-button-shell::after { content: ''; position: absolute; inset: 2px; border: 1px solid rgba(255,248,224,.35); border-radius: 16px; z-index: 1; pointer-events: none; }
+  .login-google-button-shell > div { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; z-index: 3 !important; opacity: 0 !important; }
+  .login-google-button-shell iframe { width: 100% !important; height: 100% !important; max-width: 100% !important; opacity: 0 !important; cursor: pointer !important; }
 }
 
 /* Prevent duplicate page headings: the parent shell already renders one page hero/title.
@@ -38,7 +34,6 @@
 .parent-main > .parent-section:has(.tt-upload) > .section-heading > div { display: none !important; }
 .parent-main > .parent-section:has(.tt-upload) > .section-heading { justify-content: flex-end !important; margin-bottom: 0 !important; }
 
-/* Google owns the button markup, so keep its approved GIS rendering while visually
-   harmonising the surrounding button area with Gurukulam AI's warm parchment palette. */
-.login-google-button-shell { padding: 2px !important; border: 1px solid #c88b3c !important; border-radius: 18px !important; background: #f1dfbb !important; box-shadow: 0 4px 12px rgba(102, 68, 24, .14) !important; }
-.login-google-button-shell iframe { opacity: .93 !important; }
+/* The Google iframe remains the real clickable control. It is transparent and layered over
+   a custom Gurukulam visual treatment, so Google authentication remains functional while
+   the visible control matches the artwork. */
