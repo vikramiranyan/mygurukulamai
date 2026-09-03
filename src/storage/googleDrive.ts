@@ -44,9 +44,6 @@ export async function ensureGurukulamFolders(token: string): Promise<{ rootId: s
   const roots = await findFolders(token, APP_FOLDER);
   let root: DriveFile | null = null;
   let children: DriveFile | null = null;
-  // A previous authorization/session can leave more than one same-named
-  // Gurukulam AI folder. Choose the one that actually contains child JSON
-  // records instead of arbitrarily taking the first Drive result.
   for (const candidate of roots) {
     const candidates = await findFolders(token, CHILD_FOLDER, candidate.id);
     const populated = candidates.find(folder => folderHasJsonFiles(token, folder.id));
@@ -60,24 +57,34 @@ export async function ensureGurukulamFolders(token: string): Promise<{ rootId: s
 export function clearDriveFolderCache(token?: string): void { if (token) folderCache.delete(token); else folderCache.clear(); }
 
 export async function findChildFile(token: string, childrenFolderId: string, childId: string): Promise<DriveFile | null> {
-  return findNamedChildFile(token, childrenFolderId, `${escapeDriveQueryValue(childId)}.json`, true);
+  const local = await findNamedChildFile(token, childrenFolderId, `${escapeDriveQueryValue(childId)}.json`, true);
+  if (local) return local;
+  return findNamedChildFile(token, undefined, `${escapeDriveQueryValue(childId)}.json`, true);
 }
-export async function findNamedChildFile(token: string, childrenFolderId: string, fileName: string, alreadyEscaped = false): Promise<DriveFile | null> {
+export async function findNamedChildFile(token: string, childrenFolderId: string | undefined, fileName: string, alreadyEscaped = false): Promise<DriveFile | null> {
   const safeName = alreadyEscaped ? fileName : escapeDriveQueryValue(fileName);
-  const q = encodeURIComponent(`'${escapeDriveQueryValue(childrenFolderId)}' in parents and name = '${safeName}' and trashed = false`);
+  const parent = childrenFolderId ? `'${escapeDriveQueryValue(childrenFolderId)}' in parents and ` : '';
+  const q = encodeURIComponent(`${parent}name = '${safeName}' and trashed = false`);
   const data = await driveRequest<DriveListResponse>(token, `${DRIVE_API}/files?q=${q}&corpora=user&fields=files(id,name,mimeType,parents)&spaces=drive&pageSize=10`);
   return data.files[0] || null;
 }
 export async function listChildFiles(token: string, childrenFolderId: string): Promise<DriveFile[]> {
-  // Do not restrict this listing by MIME type. Google Drive can classify
-  // JSON files differently depending on how they were created/uploaded.
-  // The child store filters the results by filename before reading them.
   const q = encodeURIComponent(`'${escapeDriveQueryValue(childrenFolderId)}' in parents and trashed = false`);
   const files: DriveFile[] = []; let pageToken = '';
   do {
     const tokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
     const data = await driveRequest<DriveListResponse>(token, `${DRIVE_API}/files?q=${q}&corpora=user&fields=nextPageToken,files(id,name,mimeType,parents)&spaces=drive&pageSize=100${tokenParam}`);
     files.push(...data.files); pageToken = data.nextPageToken || '';
+  } while (pageToken);
+  return files;
+}
+export async function listChildRecordFilesAcrossDrive(token: string): Promise<DriveFile[]> {
+  const q = encodeURIComponent("name contains 'CHD-' and trashed = false");
+  const files: DriveFile[] = []; let pageToken = '';
+  do {
+    const tokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
+    const data = await driveRequest<DriveListResponse>(token, `${DRIVE_API}/files?q=${q}&corpora=user&fields=nextPageToken,files(id,name,mimeType,parents)&spaces=drive&pageSize=100${tokenParam}`);
+    files.push(...data.files.filter(file => /^CHD-[A-Z0-9]+\.json$/.test(file.name))); pageToken = data.nextPageToken || '';
   } while (pageToken);
   return files;
 }
