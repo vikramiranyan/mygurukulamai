@@ -12,7 +12,7 @@ import { LearningHome } from './child/LearningHome';
 import { defaultWorkspace, type ChildWorkspace, type LearningWorkspace } from './learningWorkspace';
 import type { Child } from './types/parent';
 
-const GOOGLE_CLIENT_ID = '96891639304-4hi2fjfnleq59oktf3gflu9c4kei1o31.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '96891639304-4hi2fjfnleq59tf3gflu9c4kei1o31.apps.googleusercontent.com';
 type Menu = 'children' | 'timetable' | 'teachers' | 'subjects' | 'tests' | 'teaching' | 'homework';
 function childId() { return `CHD-${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`; }
 function blankChild(): Child { return { id: childId(), name: '', dob: '', gender: '', grade: '', section: '', school: '', board: '' }; }
@@ -116,36 +116,34 @@ function App() {
         setWorkspace(() => {
           const next: LearningWorkspace = {};
           for (const child of remote) {
-            const remoteWorkspace = workspacePairs.find(([id]) => id === child.id)?.[1];
-            const timetable = timetablePairs.find(([id]) => id === child.id)?.[1];
-            const timetableSubjects = timetable?.subjects || [];
-            const base = remoteWorkspace || defaultWorkspace(timetableSubjects);
-            next[child.id] = timetableSubjects.length ? { ...base, subjects: [...new Set([...(base.subjects || []), ...timetableSubjects])] } : base;
+            const remoteWorkspace = workspacePairs.find(pair => pair[0] === child.id)?.[1];
+            const timetable = timetablePairs.find(pair => pair[0] === child.id)?.[1];
+            next[child.id] = remoteWorkspace ? { ...defaultWorkspace(), ...remoteWorkspace } : defaultWorkspace();
+            if (timetable?.subjects?.length) next[child.id].subjects = [...new Set([...(next[child.id].subjects || []), ...timetable.subjects])];
           }
           return next;
         });
         setWorkspaceReady(true);
-      } catch (error) { console.error(error); }
-    }, error => console.error(error));
-    try { driveSync.authorize(); } catch (error) { console.error(error); }
-    return () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); };
-  }, [session?.user.id, driveSync]);
+      } catch (error) { console.error('Drive sync failed:', error); setWorkspaceReady(true); }
+    });
+  }, [session, driveSync]);
 
   useEffect(() => {
     if (!session || !workspaceReady) return;
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
-      void driveSync.saveAllWorkspace(workspace).catch(error => console.error('Workspace save failed:', error));
-    }, 600);
+      const child = children.find(c => c.id === active);
+      if (child && workspace[child.id]) void driveSync.saveWorkspace(child.id, workspace[child.id]);
+    }, 500);
     return () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); };
-  }, [workspace, workspaceReady, session, driveSync]);
+  }, [workspace, active, children, session, workspaceReady, driveSync]);
 
-  const signout = () => { driveSync.reset(); setSession(null); };
   if (!session) return <Login setSession={setSession} />;
+  if (!workspaceReady) return <div className="loading-screen">Loading your Gurukulam AI space…</div>;
   const child = children.find(c => c.id === active) || children[0];
-  return view === 'parents'
-    ? <Parents children={children} setChildren={setChildren} active={active} setActive={setActive} back={() => setView('child')} signout={signout} driveSync={driveSync} workspace={workspace} setWorkspace={setWorkspace} />
-    : <LearningHome child={child} children={children} active={active} setActive={setActive} workspace={child ? workspace[child.id] || defaultWorkspace() : defaultWorkspace()} setWorkspace={next => { if (!child) return; setWorkspace(current => ({ ...current, [child.id]: next })); }} onParents={() => setView('parents')} onSignOut={signout} />;
+  if (!child) return <Parents children={children} setChildren={setChildren} active={active} setActive={setActive} back={() => setView('child')} signout={() => setSession(null)} driveSync={driveSync} workspace={workspace} setWorkspace={setWorkspace} />;
+  if (view === 'parents') return <Parents children={children} setChildren={setChildren} active={active} setActive={setActive} back={() => setView('child')} signout={() => setSession(null)} driveSync={driveSync} workspace={workspace} setWorkspace={setWorkspace} />;
+  return <LearningHome child={child} onParents={() => setView('parents')} signout={() => setSession(null)} workspace={workspace[child.id] || defaultWorkspace()} />;
 }
 
 createRoot(document.getElementById('root')!).render(<App />);
