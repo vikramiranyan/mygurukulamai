@@ -22,19 +22,39 @@ async function driveRequest<T>(token: string, url: string, init: RequestInit = {
 }
 export async function probeDriveAccess(token: string): Promise<void> { await driveRequest(token, `${DRIVE_API}/about?fields=user(permissionId)`); }
 function escapeDriveQueryValue(value: string): string { return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
-async function findFolder(token: string, name: string, parentId?: string): Promise<DriveFile | null> {
+async function findFolders(token: string, name: string, parentId?: string): Promise<DriveFile[]> {
   const parent = parentId ? `'${escapeDriveQueryValue(parentId)}' in parents and ` : '';
   const q = encodeURIComponent(`${parent}name = '${escapeDriveQueryValue(name)}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
   const data = await driveRequest<DriveListResponse>(token, `${DRIVE_API}/files?q=${q}&corpora=user&fields=files(id,name,mimeType,parents)&spaces=drive&pageSize=100`);
-  return data.files[0] || null;
+  return data.files || [];
+}
+async function findFolder(token: string, name: string, parentId?: string): Promise<DriveFile | null> {
+  return (await findFolders(token, name, parentId))[0] || null;
+}
+async function folderHasJsonFiles(token: string, folderId: string): Promise<boolean> {
+  const q = encodeURIComponent(`'${escapeDriveQueryValue(folderId)}' in parents and trashed = false`);
+  const data = await driveRequest<DriveListResponse>(token, `${DRIVE_API}/files?q=${q}&corpora=user&fields=files(id,name,mimeType)&spaces=drive&pageSize=100`);
+  return Boolean((data.files || []).some(file => file.name.endsWith('.json')));
 }
 async function createFolder(token: string, name: string, parentId?: string): Promise<DriveFile> {
   return driveRequest<DriveFile>(token, `${DRIVE_API}/files`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', ...(parentId ? { parents: [parentId] } : {}) }) });
 }
 export async function ensureGurukulamFolders(token: string): Promise<{ rootId: string; childrenId: string }> {
   const cached = folderCache.get(token); if (cached) return cached;
-  const root = (await findFolder(token, APP_FOLDER)) || (await createFolder(token, APP_FOLDER));
-  const children = (await findFolder(token, CHILD_FOLDER, root.id)) || (await createFolder(token, CHILD_FOLDER, root.id));
+  const roots = await findFolders(token, APP_FOLDER);
+  let root: DriveFile | null = null;
+  let children: DriveFile | null = null;
+  // A previous authorization/session can leave more than one same-named
+  // Gurukulam AI folder. Choose the one that actually contains child JSON
+  // records instead of arbitrarily taking the first Drive result.
+  for (const candidate of roots) {
+    const candidates = await findFolders(token, CHILD_FOLDER, candidate.id);
+    const populated = candidates.find(folder => folderHasJsonFiles(token, folder.id));
+    if (populated) { root = candidate; children = populated; break; }
+    if (!children && candidates[0]) { root = candidate; children = candidates[0]; }
+  }
+  root ||= await createFolder(token, APP_FOLDER);
+  children ||= (await findFolder(token, CHILD_FOLDER, root.id)) || await createFolder(token, CHILD_FOLDER, root.id);
   const result = { rootId: root.id, childrenId: children.id }; folderCache.set(token, result); return result;
 }
 export function clearDriveFolderCache(token?: string): void { if (token) folderCache.delete(token); else folderCache.clear(); }
