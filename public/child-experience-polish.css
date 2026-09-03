@@ -1,0 +1,96 @@
+/* Child experience: teacher-first, calm hierarchy, no admin-looking clutter. */
+.child-dashboard-v2.child-experience-polished{background:radial-gradient(circle at 12% 8%,rgba(255,220,112,.22),transparent 180px),radial-gradient(circle at 92% 22%,rgba(155,224,244,.20),transparent 220px),linear-gradient(180deg,#fffdf7 0%,#f7f3ea 48%,#edf7f1 100%) !important}
+.child-dashboard-v2.child-experience-polished .child-main{width:min(1180px,calc(100% - 24px));padding-top:16px !important}
+.child-dashboard-v2.child-experience-polished .child-topbar{min-height:64px;padding:8px clamp(12px,3vw,28px);background:rgba(255,253,247,.94)}
+.child-dashboard-v2.child-experience-polished .child-brand-mark{width:42px;height:42px;flex-basis:42px;border-radius:15px;font-size:19px}
+.child-dashboard-v2.child-experience-polished .brand strong{font-size:17px}
+.child-dashboard-v2.child-experience-polished .brand small{font-size:9px}
+.child-dashboard-v2.child-experience-polished .parent-access,.child-dashboard-v2.child-experience-polished .dashboard-signout{min-height:36px !important;padding:7px 10px !important;border-radius:12px !important;font-size:10px !important}
+.child-dashboard-v2.child-experience-polished .parent-access{background:#fff7d8 !important;color:#6c541d !important}
+
+/* Make the hero the child's classroom, not a banner. */
+.child-dashboard-v2.child-experience-polished .child-hero{min-height:390px;margin-bottom:18px !important;padding:28px 34px !important;border-radius:32px !important;background:linear-gradient(118deg,#fffdf8 0%,#fff4c9 48%,#e2f6eb 100%) !important}
+.child-dashboard-v2.child-experience-polished .child-hero-copy{max-width:49%;z-index:4}
+.child-dashboard-v2.child-experience-polished .child-hero h1{font-size:clamp(38px,5vw,62px) !important;margin-top:13px !important}
+.child-dashboard-v2.child-experience-polished .hero-chips{margin-top:15px}
+.child-dashboard-v2.child-experience-polished .hero-art-wrap{right:0;bottom:0;width:57%;height:100%;z-index:3}
+.child-dashboard-v2.child-experience-polished .hero-art{right:-10px;bottom:-12px;width:78%;height:108%;object-fit:contain}
+.child-dashboard-v2.child-experience-polished .teacher-orb{display:none !important}
+.child-dashboard-v2.child-experience-polished #gurukulam-immersive-layer{position:absolute !important;inset:auto 0 0 auto !important;width:50% !important;height:100% !important;z-index:8 !important;pointer-events:none}
+.child-dashboard-v2.child-experience-polished .ga-guide{position:absolute !important;right:0 !important;bottom:0 !important;width:min(310px,100%) !important;padding:8px !important;background:linear-gradient(160deg,rgba(255,255,255,.96),rgba(250,245,227,.95)) !important;border-radius:28px 28px 0 28px !important;box-shadow:0 16px 42px rgba(39,57,48,.16) !important;pointer-events:auto}
+.child-dashboard-v2.child-experience-polished .ga-bubble{margin:0 20px 0 2px;padding:11px 13px;border-radius:17px 17px 17px 5px}
+.child-dashboard-v2.child-experience-polished .ga-bubble b{font-size:13px}
+.child-dashboard-v2.child-experience-polished .ga-bubble span{font-size:10px}
+.child-dashboard-v2.child-experience-polished .ga-character{width:230px;height:270px;margin:-2px auto 0}
+.child-dashboard-v2.child-experience-polished .ga-status{font-size:10px}
+.child-dashboard-v2.child-experience-polished .ga-actions{margin-top:5px}
+.child-dashboard-v2.child-experience-polished .ga-actions button{padding:8px 11px;font-size:10px}
+.child-dashboard-v2.child-experience-polished .ga-toggle{top:8px;right:8px}
+
+/* Replace dashboard-card wall with two useful at-a-glance cards. */
+.child-dashboard-v2.child-experience-polished .child-section-head{margin:0 2px 10px}
+.child-dashboard-v2.child-experience-polished .child-section-head h2{font-size:24px !important}
+.child-dashboard-v2.child-experience-polished .quick-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:18px}
+.child-dashboard-v2.child-experience-polished .quick-card{min-height:145px;padding:17px !important;border-radius:22px !important}
+.child-dashboard-v2.child-experience-polished .quick-homework,.child-dashboard-v2.child-experience-polished .quick-tests{display:none !important}
+.child-dashboard-v2.child-experience-polished .quick-card h3{font-size:22px}
+.child-dashboard-v2.child-experience-polished .quick-teachers{min-height:145px}
+.child-dashboard-v2.child-experience-polished .quick-teachers .quick-list>div{background:rgba(255,255,255,.86)}
+
+/* Put the lesson before configuration details. */
+.child-dashboard-v2.child-experience-polished .learning-path{margin-bottom:18px !important;border-radius:24px !important;padding:20px !important}
+.child-dashboard-v2.child-experience-polished .learning-path-title{margin-bottom:14px}
+.child-dashboard-v2.child-experience-polished .learning-path-title h2{font-size:25px}
+.child-dashboard-v2.child-experience-polished .path-controls{grid-template-columns:1fr;gap:10px}
+.child-dashboard-v2.child-experience-polished .path-arrow{display:none}
+.child-dashboard-v2.child-experience-polished .path-block{padding:12px}
+.child-dashboard-v2.child-experience-polished .lesson-card{margin-bottom:18px !important;border-radius:24px !important}
+
+/* Make the conversation the teacher's next natural action. */
+.child-dashboard-v2.child-experience-polished .ai-teacher-card{position:relative;margin-bottom:18px !important;border-radius:26px !important;overflow:hidden}
+.child-dashboard-v2.child-experience-polished .ai-teacher-card .ai-robot{display:none !important}
+.child-dashboard-v2.child-experience-polished .ai-copy{max-width:100%}
+.child-dashboard-v2.child-experience-polished .ai-teacher-card h2{font-size:29px !important}
+.child-dashboard-v2.child-experience-polished .voice-button{min-height:40px}
+.child-dashboard-v2.child-experience-polished .child-footer{padding:12px 16px 18px !important;font-size:9px !important;opacity:.6}
+
+/* The separately mounted Mind Gym belongs to the core experience. */
+.child-dashboard-v2.child-experience-polished .ga-gym{width:100%;margin:0 0 18px;padding:20px;border-radius:26px;box-shadow:0 12px 32px rgba(36,47,40,.07)}
+.child-dashboard-v2.child-experience-polished .ga-gym h2{font-size:29px}
+.child-dashboard-v2.child-experience-polished .ga-ideas textarea{min-height:72px}
+
+@media(max-width:700px){
+  .child-dashboard-v2.child-experience-polished .child-main{width:calc(100% - 14px);padding-top:8px !important}
+  .child-dashboard-v2.child-experience-polished .child-topbar{min-height:58px;padding:7px 9px}
+  .child-dashboard-v2.child-experience-polished .child-brand-mark{width:38px;height:38px;flex-basis:38px;border-radius:13px}
+  .child-dashboard-v2.child-experience-polished .brand strong{font-size:15px}
+  .child-dashboard-v2.child-experience-polished .brand small{font-size:8px}
+  .child-dashboard-v2.child-experience-polished .child-top-actions{gap:5px}
+  .child-dashboard-v2.child-experience-polished .parent-access,.child-dashboard-v2.child-experience-polished .dashboard-signout{min-height:32px !important;padding:6px 8px !important;font-size:9px !important}
+  .child-dashboard-v2.child-experience-polished .child-hero{min-height:510px;padding:22px 17px !important;display:block;overflow:hidden}
+  .child-dashboard-v2.child-experience-polished .child-hero-copy{max-width:100%;position:relative;z-index:10}
+  .child-dashboard-v2.child-experience-polished .child-hero h1{font-size:clamp(36px,10vw,48px) !important;max-width:72%}
+  .child-dashboard-v2.child-experience-polished .child-hero p{max-width:64%;font-size:13px !important}
+  .child-dashboard-v2.child-experience-polished .hero-art-wrap{right:-2%;bottom:-5px;width:72%;height:70%;z-index:4}
+  .child-dashboard-v2.child-experience-polished .hero-art{right:-20px;bottom:-15px;width:72%;height:100%}
+  .child-dashboard-v2.child-experience-polished #gurukulam-immersive-layer{width:57% !important;height:100% !important}
+  .child-dashboard-v2.child-experience-polished .ga-guide{width:100% !important;padding:5px !important;border-radius:23px 23px 0 23px !important}
+  .child-dashboard-v2.child-experience-polished .ga-bubble{margin-right:8px;padding:8px 10px}
+  .child-dashboard-v2.child-experience-polished .ga-bubble b{font-size:11px}
+  .child-dashboard-v2.child-experience-polished .ga-bubble span{font-size:8px}
+  .child-dashboard-v2.child-experience-polished .ga-character{width:175px;height:210px}
+  .child-dashboard-v2.child-experience-polished .quick-grid{grid-template-columns:1fr;gap:9px}
+  .child-dashboard-v2.child-experience-polished .quick-card{min-height:125px}
+  .child-dashboard-v2.child-experience-polished .quick-teachers{display:block !important}
+  .child-dashboard-v2.child-experience-polished .section-path{display:none}
+  .child-dashboard-v2.child-experience-polished .learning-path{padding:16px !important}
+  .child-dashboard-v2.child-experience-polished .ai-teacher-card h2{font-size:25px !important}
+}
+@media(max-width:390px){
+  .child-dashboard-v2.child-experience-polished .parent-access span{display:none}
+  .child-dashboard-v2.child-experience-polished .dashboard-signout span{display:none}
+  .child-dashboard-v2.child-experience-polished .child-hero{min-height:470px}
+  .child-dashboard-v2.child-experience-polished .hero-art-wrap{height:66%}
+  .child-dashboard-v2.child-experience-polished .ga-character{width:155px;height:188px}
+}
+@media(prefers-reduced-motion:reduce){.child-dashboard-v2.child-experience-polished .ga-guide,.child-dashboard-v2.child-experience-polished .ga-character{animation:none !important}}
