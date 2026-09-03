@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   repair:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,23 +36,22 @@ jobs:
           if (session) setSession(session);
         }
       });"""
-          if old not in s:
-              raise SystemExit('Expected Google initialize block not found')
-          s = s.replace(old, new, 1)
+          if old in s:
+              s = s.replace(old, new, 1)
           old2 = """        width: Math.min(400, Math.max(260, googleButtonRef.current.clientWidth || 360)),
         use_fedcm_for_button: true,
         button_auto_select: true
 """
           new2 = """        width: Math.min(400, Math.max(260, googleButtonRef.current.clientWidth || 360))
 """
-          if old2 not in s:
-              raise SystemExit('Expected Google renderButton block not found')
-          s = s.replace(old2, new2, 1)
+          if old2 in s:
+              s = s.replace(old2, new2, 1)
           p.write_text(s)
-      - name: Commit repair
+      - name: Commit repair if needed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/main.tsx
-          git commit -m "fix(auth): harden Google sign-in button" || exit 0
+          git diff --cached --quiet && exit 0
+          git commit -m "fix(auth): harden Google sign-in button"
           git push
