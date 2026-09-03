@@ -13,6 +13,19 @@ type DriveTokenResponse = {
   error_description?: string;
 };
 
+const DRIVE_GRANT_KEY = 'gurukulam-drive-grant-v1';
+const SILENT_RECOVERY_ERRORS = new Set(['interaction_required', 'login_required', 'consent_required']);
+
+function hasStoredGrant(): boolean {
+  try { return sessionStorage.getItem(DRIVE_GRANT_KEY) === '1'; } catch { return false; }
+}
+function markStoredGrant(): void {
+  try { sessionStorage.setItem(DRIVE_GRANT_KEY, '1'); } catch { /* storage may be unavailable */ }
+}
+function clearStoredGrant(): void {
+  try { sessionStorage.removeItem(DRIVE_GRANT_KEY); } catch { /* storage may be unavailable */ }
+}
+
 export function createDriveTokenClient(
   clientId: string,
   callback: (accessToken: string) => void,
@@ -29,9 +42,11 @@ export function createDriveTokenClient(
       if (response.access_token) {
         const grantedScopes = response.scope?.split(/\s+/).filter(Boolean) || [];
         if (grantedScopes.length && !grantedScopes.includes(GOOGLE_DRIVE_SCOPE)) {
+          clearStoredGrant();
           onError?.(new Error('Google Drive permission was not granted for this app'));
           return;
         }
+        markStoredGrant();
         callback(response.access_token);
         return;
       }
@@ -39,22 +54,32 @@ export function createDriveTokenClient(
       const detail = typeof response.error === 'string'
         ? response.error
         : response.error?.error_description || response.error?.error || response.error_description;
+      const code = typeof response.error === 'string' ? response.error : response.error?.error;
       const error = new Error(detail || 'Google Drive authorization failed');
-      (error as Error & { code?: string }).code = typeof response.error === 'string'
-        ? response.error
-        : response.error?.error;
+      (error as Error & { code?: string }).code = code;
+
+      // A returning user should not see the Drive consent dialog on every
+      // navigation/reload. If Google says the silent grant is no longer usable,
+      // clear the cached grant and perform exactly one normal authorization.
+      if (hasStoredGrant() && code && SILENT_RECOVERY_ERRORS.has(code)) {
+        clearStoredGrant();
+        try { google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: GOOGLE_DRIVE_SCOPE,
+          include_granted_scopes: true,
+          callback: (retry: DriveTokenResponse) => {
+            if (retry.access_token) { markStoredGrant(); callback(retry.access_token); return; }
+            onError?.(error);
+          },
+        }).requestAccessToken({ prompt: '' }); return; } catch { /* fall through */ }
+      }
       onError?.(error);
     },
   });
 }
 
-/**
- * Request a Drive token. Returning users must use a silent/normal token refresh
- * instead of repeatedly forcing the consent dialog. Google documents that an
- * empty prompt skips the account chooser and consent dialog for an existing
- * authorization grant; `none` is used when we explicitly require a silent
- * request with no UI at all.
- */
-export function requestDriveAccess(client: DriveTokenClient, prompt: DrivePrompt = '') {
-  client.requestAccessToken({ prompt });
+/** Request a Drive token. Existing grants are renewed silently; first-time users
+ * receive the normal Google authorization flow. */
+export function requestDriveAccess(client: DriveTokenClient, prompt?: DrivePrompt) {
+  client.requestAccessToken({ prompt: prompt ?? (hasStoredGrant() ? 'none' : '') });
 }
