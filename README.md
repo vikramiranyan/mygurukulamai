@@ -7,8 +7,9 @@ A browser-first, parent-controlled AI tutoring platform.
 - ₹0 / no mandatory paid AI subscription or development tool.
 - Internet-first: usable from desktop, laptop, mobile and tablet; no local AI/GPU requirement.
 - Google Sign-In for parent identity.
-- The signed-in parent's Google Drive is the primary user-owned persistence layer for the hosted GitHub Pages application.
-- Google Drive access uses the least-privilege `drive.file` scope; Gurukulam never requests unrestricted Drive access.
+- The signed-in parent's Google Drive is the **only persistent user-data store** for the hosted application.
+- No localStorage, sessionStorage, IndexedDB, browser database, or browser-resident child-data cache is used for application persistence.
+- No FastAPI/PostgreSQL backend is required or used by the hosted application.
 - AI teaching, reasoning, assessment and adaptive learning.
 - Voice request and voice response are core interactions.
 - High-quality animated teacher characters.
@@ -24,14 +25,13 @@ A browser-first, parent-controlled AI tutoring platform.
 Google Sign-In
       ↓
 Gurukulam AI browser app
-      ├── Google Drive (primary user-owned learning data)
-      ├── Browser cache/local drafts (temporary/offline support)
-      └── AI/voice providers (only through their supported client-safe flows)
+      ├── Google Drive (sole persistent user-data store)
+      └── AI/voice providers (only through supported client-safe flows)
 ```
 
-The GitHub Pages deployment does **not** depend on the FastAPI/PostgreSQL backend. The `/backend` directory is retained as an optional, self-hosted API implementation for future deployments and is not part of the hosted application's runtime data path. It must never be treated as a second source of truth for the GitHub Pages application.
+The hosted application is intentionally **backend-free**. There is no FastAPI service, PostgreSQL database, Git-backed user registry, or browser storage in the production data path. All child profiles, timetable data, teacher configuration, curriculum workspace and learning progress are loaded from and saved to the authenticated parent's Google Drive.
 
-The hosted frontend therefore has one authoritative persistence path: the authenticated parent's Google Drive. Backend code is maintained separately so it can be deployed independently without creating a split-brain data model.
+Google Drive access uses the least-privilege `drive.file` scope. The app keeps OAuth access tokens only in runtime memory and never persists them to browser storage.
 
 ## Google Drive data layout
 
@@ -43,13 +43,12 @@ Gurukulam AI/
     └── <childId>-learning-workspace.json
 ```
 
-Existing local child data is **never silently uploaded**. If a device contains a meaningful local child record, Gurukulam asks the parent for explicit consent before migrating it to Drive.
+The application never silently migrates or uploads browser-local child data because there is no browser-local application data store. Google Drive is the authoritative source.
 
 ## Configuration
 
-- Root `/.env.example` documents **frontend build-time/browser configuration**.
-- `/backend/.env.example` documents **server-only FastAPI configuration and secrets**.
-- Never commit either real `.env` file or provider secrets. The repository `.gitignore` excludes local environment files, build output, Python virtual environments, caches and editor artifacts.
+- Root `/.env.example` documents frontend build-time configuration.
+- Provider secrets must never be committed. The repository `.gitignore` excludes local environment files, build output, caches and editor artifacts.
 
 ## Development
 
