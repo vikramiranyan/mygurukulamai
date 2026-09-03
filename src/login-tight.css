@@ -29,11 +29,7 @@
   .login-google-button-shell iframe { width: 100% !important; height: 100% !important; max-width: 100% !important; opacity: 0 !important; cursor: pointer !important; }
 }
 
-/* Prevent duplicate page headings: the parent shell already renders one page hero/title.
-   Keep the child selector from the timetable screen, but remove its second title block. */
 .parent-main > .parent-section:has(.tt-upload) > .section-heading > div { display: none !important; }
 .parent-main > .parent-section:has(.tt-upload) > .section-heading { justify-content: flex-end !important; margin-bottom: 0 !important; }
 
-/* The Google iframe remains the real clickable control. It is transparent and layered over
-   a custom Gurukulam visual treatment, so Google authentication remains functional while
-   the visible control matches the artwork. */
+/* The Google iframe remains the real clickable control. It is transparent and layered over the Gurukulam visual treatment. */
