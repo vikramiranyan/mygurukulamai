@@ -1,5 +1,0 @@
-{
-  "deprecated": true,
-  "replacement": "backend PostgreSQL parents.drive_access",
-  "version": 2
-}
