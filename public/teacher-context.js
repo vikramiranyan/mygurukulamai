@@ -68,9 +68,10 @@
     requestAnimationFrame(() => { queued = false; run(); });
   };
   const observer = new MutationObserver(records => {
-    if (records.some(record => record.type === 'childList' || [...record.addedNodes].some(node => node.nodeType === 1 && (node.matches?.('.child-dashboard-v2, .subject-pill, .quick-teachers') || node.querySelector?.('.child-dashboard-v2, .subject-pill, .quick-teachers'))))) queueRun();
+    const relevant = records.some(record => record.type === 'childList' || (record.type === 'attributes' && record.target instanceof Element && record.target.matches('.subject-pill')));
+    if (relevant) queueRun();
   });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
   window.addEventListener('load', queueRun, { once: true });
   queueRun();
 })();
