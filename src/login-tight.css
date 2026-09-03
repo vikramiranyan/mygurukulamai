@@ -37,3 +37,8 @@
    Keep the child selector from the timetable screen, but remove its second title block. */
 .parent-main > .parent-section:has(.tt-upload) > .section-heading > div { display: none !important; }
 .parent-main > .parent-section:has(.tt-upload) > .section-heading { justify-content: flex-end !important; margin-bottom: 0 !important; }
+
+/* Google owns the button markup, so keep its approved GIS rendering while visually
+   harmonising the surrounding button area with Gurukulam AI's warm parchment palette. */
+.login-google-button-shell { padding: 2px !important; border: 1px solid #c88b3c !important; border-radius: 18px !important; background: #f1dfbb !important; box-shadow: 0 4px 12px rgba(102, 68, 24, .14) !important; }
+.login-google-button-shell iframe { opacity: .93 !important; }
