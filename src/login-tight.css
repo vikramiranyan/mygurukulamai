@@ -1,5 +1,8 @@
 /* Gurukulam AI — responsive full-screen login compositions */
 
+.login-google-loading, .login-google-error { display: block; text-align: center; margin-top: 8px; font-size: 12px; line-height: 1.35; }
+.login-google-error { color: #9b1c1c; font-weight: 600; }
+
 @media (min-width: 901px) {
   .login-screen { position: relative !important; width: 100vw !important; height: 100vh !important; min-height: 100vh !important; overflow: hidden !important; background-color: #f7f0e3 !important; background-image: url('/mygurukulamai/assets/gurukulam-two-girls-3d-Laptop.png') !important; background-repeat: no-repeat !important; background-position: center center !important; background-size: 100% 100% !important; }
   .login-header, .login-hero, .login-footer { display: none !important; }
