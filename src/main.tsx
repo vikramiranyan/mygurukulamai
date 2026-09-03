@@ -25,7 +25,7 @@ function Login({ setSession }: { setSession: (s: AuthSession) => void }) {
     let cancelled = false;
     const init = () => {
       if (cancelled || !window.google || !googleButtonRef.current) return;
-      window.google.accounts.id.initialize({
+      (window.google.accounts.id.initialize as any)({
         client_id: GOOGLE_CLIENT_ID,
         auto_select: true,
         use_fedcm_for_button: true,
