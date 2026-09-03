@@ -1,0 +1,56 @@
+name: Repair Google Sign-In runtime
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch Google GIS button configuration
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/main.tsx')
+          s = p.read_text()
+          old = """      (window.google.accounts.id.initialize as any)({
+        client_id: GOOGLE_CLIENT_ID,
+        auto_select: true,
+        use_fedcm_for_button: true,
+        button_auto_select: true,
+        callback: response => {
+          const session = credentialToSession(response.credential, GOOGLE_CLIENT_ID);
+          if (session) setSession(session);
+        }
+      });"""
+          new = """      (window.google.accounts.id.initialize as any)({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: (response: { credential: string }) => {
+          const session = credentialToSession(response.credential, GOOGLE_CLIENT_ID);
+          if (session) setSession(session);
+        }
+      });"""
+          if old not in s:
+              raise SystemExit('Expected Google initialize block not found')
+          s = s.replace(old, new, 1)
+          old2 = """        width: Math.min(400, Math.max(260, googleButtonRef.current.clientWidth || 360)),
+        use_fedcm_for_button: true,
+        button_auto_select: true
+"""
+          new2 = """        width: Math.min(400, Math.max(260, googleButtonRef.current.clientWidth || 360))
+"""
+          if old2 not in s:
+              raise SystemExit('Expected Google renderButton block not found')
+          s = s.replace(old2, new2, 1)
+          p.write_text(s)
+      - name: Commit repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/main.tsx
+          git commit -m "fix(auth): harden Google sign-in button" || exit 0
+          git push
