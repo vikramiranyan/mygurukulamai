@@ -2,6 +2,7 @@ export type MasteryBand = 'reteach' | 'practice' | 'advance';
 
 export type LearningSignal = {
   correct: boolean;
+  questionId?: string;
   responseMs?: number;
   hintUsed?: boolean;
   attempts?: number;
@@ -20,9 +21,9 @@ function clamp(value: number, min = 0, max = 1): number { return Math.max(min, M
 function effectiveAttempts(signals: LearningSignal[], index: number): number {
   const explicit = signals[index]?.attempts;
   if (typeof explicit === 'number' && Number.isFinite(explicit) && explicit >= 1) return explicit;
-  const questionKey = (signals[index] as LearningSignal & { questionId?: string }).questionId;
+  const questionKey = signals[index]?.questionId;
   if (!questionKey) return 1;
-  return signals.slice(0, index + 1).filter(signal => (signal as LearningSignal & { questionId?: string }).questionId === questionKey).length;
+  return signals.slice(0, index + 1).filter(signal => signal.questionId === questionKey).length;
 }
 
 export function scoreLearningSignals(signals: LearningSignal[]): number {
