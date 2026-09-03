@@ -49,7 +49,10 @@ export async function findNamedChildFile(token: string, childrenFolderId: string
   return data.files[0] || null;
 }
 export async function listChildFiles(token: string, childrenFolderId: string): Promise<DriveFile[]> {
-  const q = encodeURIComponent(`'${escapeDriveQueryValue(childrenFolderId)}' in parents and mimeType = 'application/json' and trashed = false`);
+  // Do not restrict this listing by MIME type. Google Drive can classify
+  // JSON files differently depending on how they were created/uploaded.
+  // The child store filters the results by filename before reading them.
+  const q = encodeURIComponent(`'${escapeDriveQueryValue(childrenFolderId)}' in parents and trashed = false`);
   const files: DriveFile[] = []; let pageToken = '';
   do {
     const tokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
