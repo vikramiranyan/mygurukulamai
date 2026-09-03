@@ -24,22 +24,13 @@
   function character() {
     const guide = document.createElement('aside'); guide.className = 'ga-guide';
     guide.innerHTML = `<div class="ga-bubble"><b class="ga-greeting">Hi, friend! 👋</b><span class="ga-message">I will stay beside you while you learn.</span></div><div class="ga-character"><div class="ga-shadow"></div><div class="ga-legs"><i></i><i></i></div><div class="ga-body"><div class="ga-torso"><b>GAI</b></div><div class="ga-arm ga-left"></div><div class="ga-arm ga-right"></div></div><div class="ga-neck"></div><div class="ga-head"><div class="ga-hair"></div><div class="ga-eye ga-e1"></div><div class="ga-eye ga-e2"></div><div class="ga-nose"></div><div class="ga-mouth"></div><div class="ga-ear l"></div><div class="ga-ear r"></div></div><div class="ga-waves" hidden><i></i><i></i><i></i></div></div><div class="ga-status">● Ready to learn</div><div class="ga-actions"><button class="ga-celebrate-btn">⭐ Celebrate</button></div><button class="ga-toggle" aria-label="Minimise guide">×</button>`;
-    const bubble = guide.querySelector('.ga-message'); const greeting = guide.querySelector('.ga-greeting'); const status = guide.querySelector('.ga-status'); const mouth = guide.querySelector('.ga-mouth'); const waves = guide.querySelector('.ga-waves');
-    let lastSpeaking = false;
-    const timer = window.setInterval(() => {
-      const speaking = 'speechSynthesis' in window && window.speechSynthesis.speaking;
-      if (speaking === lastSpeaking) return;
-      lastSpeaking = speaking; guide.classList.toggle('speaking', speaking); mouth.classList.toggle('speaking', speaking); waves.hidden = !speaking;
-      status.textContent = speaking ? '● Speaking' : '● Ready to learn';
-      bubble.textContent = speaking ? 'Listen carefully — I am explaining.' : 'I will stay beside you while you learn.';
-    }, 120);
     guide.querySelector('.ga-toggle').addEventListener('click', () => { guide.classList.toggle('collapsed'); guide.querySelector('.ga-toggle').textContent = guide.classList.contains('collapsed') ? '👩‍🏫' : '×'; });
     guide.querySelector('.ga-celebrate-btn').addEventListener('click', () => { guide.classList.add('celebrate'); window.setTimeout(() => guide.classList.remove('celebrate'), 1000); });
-    guide.dataset.timer = String(timer); return guide;
+    return guide;
   }
 
   function mindGym(childName) {
-    const section = document.createElement('section'); section.className = 'ga-gym'; section.innerHTML = `<div><span class="ga-kicker">🧠 BEYOND SCHOOL</span><h2>Mind Gym</h2><p>Playful practice for reasoning, creativity, memory and curiosity.</p></div><div class="ga-tabs" role="tablist"><button data-tab="brainstorm" class="active">💡 Brainstorm</button><button data-tab="pattern">🔢 Patterns</button><button data-tab="logic">🧩 Logic</button><button data-tab="story">📚 Story Studio</button><button data-tab="curiosity">🔭 Curiosity</button></div><div class="ga-card"></div>`;
+    const section = document.createElement('section'); section.className = 'ga-gym'; section.innerHTML = `<div><span class="ga-kicker">🧠 BEYOND SCHOOL</span><h2>Mind Gym</h2><p>Playful practice for reasoning, creativity, thinking and curiosity.</p></div><div class="ga-tabs" role="tablist"><button data-tab="brainstorm" class="active">💡 Brainstorm</button><button data-tab="pattern">🔢 Patterns</button><button data-tab="logic">🧩 Logic</button><button data-tab="story">📚 Story Studio</button><button data-tab="curiosity">🔭 Curiosity</button></div><div class="ga-card"></div>`;
     const card = section.querySelector('.ga-card'); let tab = 'brainstorm'; let index = 0;
     const render = () => {
       if (tab === 'brainstorm') card.innerHTML = `<strong>Brainstorm Mission</strong><span>Invent 3 improvements for something you use every day.</span><input class="ga-topic" value="A better school bag" aria-label="Brainstorm topic"><div class="ga-ideas"><label>Idea 1<textarea rows="2" placeholder="My idea is…"></textarea></label><label>Idea 2<textarea rows="2" placeholder="My idea is…"></textarea></label><label>Idea 3<textarea rows="2" placeholder="My idea is…"></textarea></label></div><div class="ga-tip">🌱 No single correct answer. Try an unusual idea!</div>`;
