@@ -12,8 +12,7 @@ A browser-first, parent-controlled AI tutoring platform.
 - AI teaching, reasoning, assessment and adaptive learning.
 - Voice request and voice response are core interactions.
 - High-quality animated teacher characters.
-- Teacher **Vikram**: English, Maths, Computer.
-- Teacher **Raji**: EVS, Hindi, GK and other subjects.
+- Teacher identities, roles and subject assignments are created and controlled by the parent; there are no seeded/default named teachers.
 - Parent chooses today's topic.
 - Gurukulam finds/maps the chapter and page range where legitimately available.
 - Parent must approve an automatically mapped chapter before it becomes trusted curriculum.
