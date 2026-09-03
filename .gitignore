@@ -9,14 +9,6 @@ coverage/
 .env
 .env.local
 .env.*.local
-backend/.env
-backend/.env.local
-
-# Python
-backend/.venv/
-__pycache__/
-*.py[cod]
-.pytest_cache/
 
 # Editors / OS
 .DS_Store
