@@ -15,16 +15,23 @@ export type AdaptiveRecommendation = {
   reason: string;
 };
 
-function clamp(value: number, min = 0, max = 1): number {
-  return Math.max(min, Math.min(max, value));
+function clamp(value: number, min = 0, max = 1): number { return Math.max(min, Math.min(max, value)); }
+
+function effectiveAttempts(signals: LearningSignal[], index: number): number {
+  const explicit = signals[index]?.attempts;
+  if (typeof explicit === 'number' && Number.isFinite(explicit) && explicit >= 1) return explicit;
+  const questionKey = (signals[index] as LearningSignal & { questionId?: string }).questionId;
+  if (!questionKey) return 1;
+  return signals.slice(0, index + 1).filter(signal => (signal as LearningSignal & { questionId?: string }).questionId === questionKey).length;
 }
 
 export function scoreLearningSignals(signals: LearningSignal[]): number {
   if (!signals.length) return 0;
-  const weighted = signals.map(signal => {
+  const weighted = signals.map((signal, index) => {
     let value = signal.correct ? 1 : 0;
     if (signal.hintUsed) value -= 0.15;
-    if ((signal.attempts ?? 1) > 1) value -= Math.min(0.2, ((signal.attempts ?? 1) - 1) * 0.05);
+    const attempts = effectiveAttempts(signals, index);
+    if (attempts > 1) value -= Math.min(0.2, (attempts - 1) * 0.05);
     if (typeof signal.responseMs === 'number' && signal.responseMs > 30000) value -= 0.05;
     return clamp(value);
   });
@@ -34,16 +41,13 @@ export function scoreLearningSignals(signals: LearningSignal[]): number {
 export function recommendNextStep(signals: LearningSignal[], previousMastery = 0): AdaptiveRecommendation {
   const observed = signals.length ? scoreLearningSignals(signals) / 100 : clamp(previousMastery);
   const mastery = Math.round((observed * 0.75 + clamp(previousMastery) * 0.25) * 100);
-  const incorrect = signals.filter(signal => !signal.correct).length;
+  let consecutiveIncorrect = 0;
+  for (let index = signals.length - 1; index >= 0 && !signals[index].correct; index -= 1) consecutiveIncorrect += 1;
   const hints = signals.filter(signal => signal.hintUsed).length;
-  const confidence = Math.round(clamp(1 - incorrect / Math.max(3, signals.length) - hints * 0.08) * 100);
+  const confidence = Math.round(clamp(1 - consecutiveIncorrect / Math.max(3, signals.length) - hints * 0.08) * 100);
 
-  if (mastery < 50 || incorrect >= 2) {
-    return { band: 'reteach', mastery, confidence, nextStep: 'reteach', reason: 'The learner needs a simpler explanation and a guided example before another check.' };
-  }
-  if (mastery < 80 || hints > 0) {
-    return { band: 'practice', mastery, confidence, nextStep: mastery < 65 ? 'guided-practice' : 'independent-practice', reason: 'The learner is developing the concept; vary examples and reduce support gradually.' };
-  }
+  if (mastery < 50 || consecutiveIncorrect >= 2) return { band: 'reteach', mastery, confidence, nextStep: 'reteach', reason: 'The learner needs a simpler explanation and a guided example before another check.' };
+  if (mastery < 80 || hints > 0) return { band: 'practice', mastery, confidence, nextStep: mastery < 65 ? 'guided-practice' : 'independent-practice', reason: 'The learner is developing the concept; vary examples and reduce support gradually.' };
   return { band: 'advance', mastery, confidence, nextStep: 'challenge', reason: 'The learner is demonstrating stable understanding; introduce a slightly harder application.' };
 }
 
