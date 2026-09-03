@@ -1,4 +1,4 @@
-import { ensureGurukulamFolders, findChildFile, listChildFiles, readFile, writeJson, deleteFile } from './googleDrive';
+import { ensureGurukulamFolders, findChildFile, listChildFiles, listChildRecordFilesAcrossDrive, readFile, writeJson, deleteFile } from './googleDrive';
 import type { DriveFile } from './googleDrive';
 
 export type DriveChildRecord = {
@@ -13,11 +13,13 @@ export type DriveChildRecord = {
 };
 
 const timetableFileName = (childId: string) => `${childId}-timetable.json`;
+const isChildRecordFile = (file: DriveFile) => /^CHD-[A-Z0-9]+\.json$/.test(file.name);
 
 export async function loadChildrenFromDrive(token: string): Promise<DriveChildRecord[]> {
   const { childrenId } = await ensureGurukulamFolders(token);
-  const files = await listChildFiles(token, childrenId);
-  const childFiles = files.filter(file => file.name.endsWith('.json') && !file.name.endsWith('-timetable.json') && !file.name.endsWith('-learning-workspace.json'));
+  const localFiles = await listChildFiles(token, childrenId);
+  const discoveredFiles = await listChildRecordFilesAcrossDrive(token);
+  const childFiles = [...new Map([...localFiles, ...discoveredFiles].filter(isChildRecordFile).map(file => [file.id, file])).values()];
   const records = await Promise.all(childFiles.map(async file => {
     try {
       const record = await readFile<DriveChildRecord>(token, file.id);
