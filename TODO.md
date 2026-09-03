@@ -26,11 +26,13 @@
 - [ ] Complete parent dashboard and child learning analytics with actionable progress, mastery, weak areas, recommendations, and privacy-safe reporting.
 - [ ] Complete assessment engine for practice, tests, exams, grading, explanations, retry/remediation, and mastery updates.
 - [ ] Complete persistent curriculum/content architecture for subjects, chapters, pages, lessons, homework, tests, and parent-controlled teaching scope.
+- [x] Make returning Google Drive grants silent so normal navigation does not repeatedly ask for Drive access.
 
 ### P2 — Product Expansion
 - [ ] Add rich educational media capabilities including diagrams, visual explanations, image understanding, handwriting/workbook analysis, and age-appropriate interactive learning experiences.
 - [ ] Expand gamification: XP, levels, badges, streaks, quests, rewards, and healthy motivation without manipulative mechanics.
-- [ ] Expand 3D/animated teacher experience, transitions, micro-interactions, and performance-aware visual effects with reduced-motion accessibility.
+- [x] Add a first immersive animated teacher layer with speech-linked mouth movement, idle animation, celebration reaction, and a dedicated Mind Gym area.
+- [ ] Replace the lightweight animated guide with production-grade rigged 3D Vikram/Raji teacher assets, phoneme-aware lip-sync, teacher-specific gestures/emotions, and performance-aware 3D rendering.
 - [ ] Add robust offline-first behavior, synchronization, conflict handling, retry queues, and recovery from intermittent connectivity.
 - [ ] Add observability: structured logs, metrics, health checks, safe diagnostics, audit trails, and production incident visibility without exposing child data.
 
@@ -52,9 +54,13 @@
 - [x] Allowed manual-subject timetable records to persist without timetable periods.
 - [x] Verified the corrected frontend CI: typecheck, unit/integration tests, Stage 8 regression suite, and production build all passed.
 - [x] Verified the GitHub Pages build/deploy workflow completed successfully for the corrected build.
+- [x] Replaced the legacy DOM child-switcher injection with a cleaner immersive learning layer mounted by the application shell.
+- [x] Added speech-linked animated teacher mouth movement so browser TTS visibly drives the teacher's speaking state.
+- [x] Added Mind Gym activities for brainstorming, pattern recognition, logic, story building, and curiosity questions.
 
 ## Change Log
 
 - **2026-09-01:** Created the project TODO mechanism so user suggestions are captured while development continues and are automatically considered at the end of each work cycle.
 - **2026-09-01:** Added user-requested backlog items for removing hardcoded teacher/subject relationships and enabling manual subject management without a timetable.
 - **2026-09-01:** Implemented and verified the requested teacher/subject integrity fixes and manual subject workflow.
+- **2026-09-03:** Added the next-generation child experience direction: an animated teacher beside the lesson, speech-linked mouth animation, celebration reaction, and Mind Gym intellectual-development activities. Production-grade rigged 3D Vikram/Raji characters remain a P2 implementation item.
