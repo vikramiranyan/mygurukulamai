@@ -9,11 +9,10 @@ import type { DriveChildRecord } from './storage/driveChildStore';
 import { ParentTimetableSubjects } from './parentTimetableSubjects';
 import { ParentLearningTools } from './parentLearningTools';
 import { LearningHome } from './child/LearningHome';
-import { defaultWorkspace, normalizeWorkspace, type ChildWorkspace, type LearningWorkspace } from './learningWorkspace';
+import { defaultWorkspace, type ChildWorkspace, type LearningWorkspace } from './learningWorkspace';
 import type { Child } from './types/parent';
 
 const GOOGLE_CLIENT_ID = '96891639304-4hi2fjfnleq59oktf3gflu9c4kei1o31.apps.googleusercontent.com';
-const SESSION_KEY = 'gurukulam-auth-session';
 type Menu = 'children' | 'timetable' | 'teachers' | 'subjects' | 'tests' | 'teaching' | 'homework';
 function childId() { return `CHD-${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`; }
 function blankChild(): Child { return { id: childId(), name: '', dob: '', gender: '', grade: '', section: '', school: '', board: '' }; }
@@ -43,7 +42,7 @@ function Parents({ children, setChildren, active, setActive, back, signout, driv
 }
 
 function App() {
-  const [session, setSession] = useState<AuthSession | null>(() => { try { const value = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); return isSessionValid(value) ? value : null; } catch { return null; } });
+  const [session, setSession] = useState<AuthSession | null>(null);
   const [view, setView] = useState<'child' | 'parents'>('child');
   const [children, setChildren] = useState<Child[]>([]);
   const [active, setActive] = useState('');
@@ -54,13 +53,9 @@ function App() {
 
   useEffect(() => {
     if (!session) {
-      driveSync.reset(); setChildren([]); setActive(''); setWorkspace({}); setWorkspaceReady(false); sessionStorage.removeItem(SESSION_KEY); return;
+      driveSync.reset(); setChildren([]); setActive(''); setWorkspace({}); setWorkspaceReady(false); setView('child'); return;
     }
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
     setChildren([]); setActive(''); setWorkspace({}); setWorkspaceReady(false); setView('child');
-    const workspaceKey = `gurukulam:${encodeURIComponent(session.user.id)}:learning-workspace`;
-    let legacyWorkspace: LearningWorkspace = {};
-    try { legacyWorkspace = normalizeWorkspace(JSON.parse(localStorage.getItem(workspaceKey) || '{}')); } catch { legacyWorkspace = {}; }
 
     driveSync.configure(GOOGLE_CLIENT_ID, async () => {
       try {
@@ -72,10 +67,9 @@ function App() {
           const next: LearningWorkspace = {};
           for (const child of remote) {
             const remoteWorkspace = workspacePairs.find(([id]) => id === child.id)?.[1];
-            const legacy = legacyWorkspace[child.id];
             const timetable = timetablePairs.find(([id]) => id === child.id)?.[1];
             const timetableSubjects = timetable?.subjects || [];
-            const base = remoteWorkspace || legacy || defaultWorkspace(timetableSubjects);
+            const base = remoteWorkspace || defaultWorkspace(timetableSubjects);
             next[child.id] = timetableSubjects.length ? { ...base, subjects: [...new Set([...(base.subjects || []), ...timetableSubjects])] } : base;
           }
           return next;
@@ -86,8 +80,6 @@ function App() {
     try { driveSync.authorize(); } catch (error) { console.error(error); }
     return () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); };
   }, [session?.user.id, driveSync]);
-
-  useEffect(() => { if (!session) return; sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); }, [session]);
 
   useEffect(() => {
     if (!session || !workspaceReady) return;
@@ -104,12 +96,12 @@ function App() {
 
   useEffect(() => {
     if (!session) return;
-    const checkExpiry = () => { if (!isSessionValid(session)) { driveSync.reset(); sessionStorage.removeItem(SESSION_KEY); setSession(null); } };
+    const checkExpiry = () => { if (!isSessionValid(session)) { driveSync.reset(); setSession(null); } };
     checkExpiry(); const timer = window.setInterval(checkExpiry, 30_000); return () => window.clearInterval(timer);
   }, [session, driveSync]);
 
   if (!session) return <Login setSession={setSession} />;
-  const signout = () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); driveSync.reset(); sessionStorage.removeItem(SESSION_KEY); setSession(null); setView('child'); };
+  const signout = () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); driveSync.reset(); setSession(null); setView('child'); };
   const child = children.find(item => item.id === active) || children[0] || blankChild();
   const childWorkspace = workspace[child.id] || defaultWorkspace();
   return view === 'parents' ? <Parents children={children} setChildren={setChildren} active={active} setActive={setActive} back={() => setView('child')} signout={signout} driveSync={driveSync} workspace={workspace} setWorkspace={setWorkspace} /> : <LearningHome child={child} onParents={() => setView('parents')} signout={signout} workspace={childWorkspace} />;
