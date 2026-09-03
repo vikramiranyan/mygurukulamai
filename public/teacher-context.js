@@ -6,18 +6,22 @@
 
   function teacherFromRow(row) {
     if (!row) return null;
-    const name = clean(row.querySelector('strong')?.textContent, 100);
-    const details = clean(row.querySelector('small')?.textContent, 160);
+    const name = clean(row.dataset.teacherName || row.querySelector('strong')?.textContent, 100);
+    const subjects = clean(row.dataset.teacherSubjects || row.querySelector('small')?.textContent?.split(' · ')[0], 160);
+    const role = clean(row.dataset.teacherRole || row.querySelector('small')?.textContent?.split(' · ').slice(1).join(' · '), 100) || 'Personal AI Teacher';
     if (!name) return null;
-    const parts = details.split(' · ');
-    return { name, subjects: parts[0] || '', role: parts.slice(1).join(' · ') || 'Personal AI Teacher' };
+    return { name, subjects, role };
   }
 
   function teacherForCurrentSubject(page) {
-    const activeSubject = clean(page.querySelector('.subject-pill.active')?.textContent, 100);
-    const teachers = [...page.querySelectorAll('.quick-teachers .quick-list > div')].map(teacherFromRow).filter(Boolean);
+    const teacherCard = page.querySelector('.quick-teachers');
+    const activeSubject = clean(teacherCard?.dataset.activeSubject || page.querySelector('.subject-pill.active')?.dataset.subject || page.querySelector('.subject-pill.active')?.textContent, 100);
+    const explicitActiveName = clean(teacherCard?.dataset.activeTeacher, 100);
+    const rows = [...page.querySelectorAll('.quick-teachers .quick-list > div[data-teacher-name]')];
+    const teachers = (rows.length ? rows : [...page.querySelectorAll('.quick-teachers .quick-list > div')]).map(teacherFromRow).filter(Boolean);
     if (!teachers.length) return null;
-    if (!activeSubject) return teachers[0];
+    if (explicitActiveName) return teachers.find(teacher => teacher.name === explicitActiveName) || null;
+    if (!activeSubject) return null;
     return teachers.find(teacher => teacher.subjects.split(',').map(item => clean(item, 100)).includes(activeSubject)) || null;
   }
 
@@ -68,10 +72,10 @@
     requestAnimationFrame(() => { queued = false; run(); });
   };
   const observer = new MutationObserver(records => {
-    const relevant = records.some(record => record.type === 'childList' || (record.type === 'attributes' && record.target instanceof Element && record.target.matches('.subject-pill')));
+    const relevant = records.some(record => record.type === 'childList' || (record.type === 'attributes' && record.target instanceof Element && (record.target.matches('.subject-pill') || record.target.matches('.quick-teachers'))));
     if (relevant) queueRun();
   });
-  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'data-active-teacher', 'data-active-subject'] });
   window.addEventListener('load', queueRun, { once: true });
   queueRun();
 })();
