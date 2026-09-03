@@ -30,9 +30,7 @@ export function checkTutorInput(input: string): SafetyDecision {
   const normalized = normalizeTutorInput(raw);
   if (blockedPatterns.some(pattern => pattern.test(normalized))) return { allowed: false, reason: 'Request is outside the age-appropriate tutor scope.' };
   if (promptInjectionPatterns.some(pattern => pattern.test(normalized))) return { allowed: false, reason: 'I can help with learning, but I cannot change my safety or parent controls.' };
-  // Keep the established public return shape for allowed requests. Callers that need
-  // normalized text can use normalizeTutorInput() explicitly.
-  return { allowed: true };
+  return { allowed: true, normalized };
 }
 
 export function ageAppropriateInstruction(text: string, age?: number): string {
