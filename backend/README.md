@@ -1,6 +1,6 @@
 # Gurukulam API
 
-Free/self-hostable backend foundation for Parent → Child data.
+Optional, self-hostable FastAPI backend for deployments that need a server-side API. It is **not used by the hosted GitHub Pages application**, whose authoritative user-learning persistence is Google Drive.
 
 ## Stack
 
@@ -19,6 +19,9 @@ Required:
 - `DATABASE_URL`
 - `GOOGLE_CLIENT_ID`
 - `JWT_SECRET`
+- `ALLOWED_HOSTS` in production (do not use `*`)
+
+The root `/.env.example` belongs to the browser/Vite application. This `/backend/.env.example` belongs only to the FastAPI process and may contain server secrets.
 
 ## Local run
 
@@ -30,4 +33,6 @@ uvicorn app.main:app --reload
 
 On Windows PowerShell, activate `.venv\\Scripts\\Activate.ps1` first.
 
-The API is intentionally independent of the GitHub Pages frontend so the frontend can later point to any self-hosted FastAPI instance without changing the data model.
+## Data ownership
+
+This backend stores its own server-side records in PostgreSQL when deployed. It does not write user-access state into the Git repository. The hosted GitHub Pages application does not depend on this backend and continues to use the authenticated parent's Google Drive as its primary persistence layer.
