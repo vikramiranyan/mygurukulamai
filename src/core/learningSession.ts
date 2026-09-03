@@ -22,10 +22,12 @@ export type LearningSession = {
 
 export function scoreAnswers(answers: AnswerRecord[]): number {
   if (!answers.length) return 0;
-  const weighted = answers.map(answer => {
+  const weighted = answers.map((answer, index) => {
     let value = answer.correct ? 1 : 0;
     if (answer.hintUsed) value -= 0.15;
-    if ((answer.attempts ?? 1) > 1) value -= Math.min(0.2, ((answer.attempts ?? 1) - 1) * 0.05);
+    const inferredAttempts = answers.slice(0, index + 1).filter(item => item.questionId === answer.questionId).length;
+    const attempts = Math.max(1, answer.attempts ?? inferredAttempts);
+    if (attempts > 1) value -= Math.min(0.2, (attempts - 1) * 0.05);
     if (typeof answer.responseMs === 'number' && answer.responseMs > 30000) value -= 0.05;
     return Math.max(0, Math.min(1, value));
   });
@@ -46,5 +48,6 @@ export function startSession(childId: string, subject: string, chapterId: string
 export function recordSessionAnswer(session: LearningSession, answer: AnswerRecord): LearningSession {
   const answers = [...session.answers, answer];
   const streak = answer.correct ? session.streak + 1 : 0;
-  return { ...session, answers, masteryScore: scoreAnswers(answers), phase: nextPhase(scoreAnswers(answers)), lastActivityAt: Date.now(), streak };
+  const masteryScore = scoreAnswers(answers);
+  return { ...session, answers, masteryScore, phase: nextPhase(masteryScore), lastActivityAt: Date.now(), streak };
 }
