@@ -1,6 +1,11 @@
-export const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+// Gurukulam AI must load and update the existing child records already stored
+// in the user's My Drive. `drive.file` is limited to files the current app has
+// created or explicitly opened; older Gurukulam records can therefore become
+// invisible even though they are present in the user's Drive. Full Drive access
+// is used here because this app's sole persistence layer is the user's own Drive.
+export const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 export type DrivePrompt = '' | 'consent' | 'none' | 'select_account';
-export type DriveTokenClient = { requestAccessToken: (overrideConfig?: { prompt?: DrivePrompt }) => void };
+type DriveTokenClient = { requestAccessToken: (overrideConfig?: { prompt?: DrivePrompt }) => void };
 type DriveTokenResponse = { access_token?: string; scope?: string; error?: string | { error?: string; error_description?: string }; error_description?: string };
 const SILENT_RECOVERY_ERRORS = new Set(['interaction_required', 'login_required', 'consent_required']);
 let driveGrantKnownInMemory = false;
