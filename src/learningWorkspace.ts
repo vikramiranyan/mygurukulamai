@@ -12,6 +12,7 @@ export function defaultWorkspace(subjects: string[] = []): ChildWorkspace { retu
 function cleanString(value: unknown, max = 500): string { return typeof value === 'string' ? value.replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, max) : ''; }
 function cleanSubjectList(value: unknown): string[] { return Array.isArray(value) ? [...new Set(value.map(item => cleanString(item, 100)).filter(Boolean))] : []; }
 function cleanPages(value: unknown): ChapterPage[] { if (!Array.isArray(value)) return []; return value.map(page => { if (!page || typeof page !== 'object') return null; const raw = page as ChapterPage; return { number: Math.max(1, Number(raw.number) || 1), text: cleanString(raw.text, 6000) }; }).filter((page): page is ChapterPage => Boolean(page)); }
+function stableId(prefix: string, seed: string): string { let hash = 2166136261; for (const char of seed) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); } return `${prefix}-${(hash >>> 0).toString(36)}`; }
 
 export function normalizeWorkspace(value: unknown): LearningWorkspace {
   if (!value || typeof value !== 'object') return {};
@@ -19,29 +20,32 @@ export function normalizeWorkspace(value: unknown): LearningWorkspace {
   for (const [childId, rawWorkspace] of Object.entries(value as Record<string, unknown>)) {
     if (!rawWorkspace || typeof rawWorkspace !== 'object') { result[childId] = defaultWorkspace(); continue; }
     const workspace = rawWorkspace as Partial<ChildWorkspace>;
-    const teachers = Array.isArray(workspace.teachers) ? workspace.teachers.map(raw => {
+    const teachers = Array.isArray(workspace.teachers) ? workspace.teachers.map((raw, index) => {
       if (!raw || typeof raw !== 'object') return null;
       const teacher = raw as TeacherProfile; const name = cleanString(teacher.name, 100); const subjects = cleanSubjectList(teacher.subjects);
       if (!name || !subjects.length) return null;
-      return { id: cleanString(teacher.id, 100) || crypto.randomUUID(), name, role: cleanString(teacher.role, 100) || 'Personal AI Teacher', subjects, style: cleanString(teacher.style, 250) || 'Warm, patient and step-by-step', enabled: Boolean(teacher.enabled) };
+      const id = cleanString(teacher.id, 100) || stableId('teacher', `${childId}|${name}|${subjects.join('|')}|${index}`);
+      return { id, name, role: cleanString(teacher.role, 100) || 'Personal AI Teacher', subjects, style: cleanString(teacher.style, 250) || 'Warm, patient and step-by-step', enabled: Boolean(teacher.enabled) };
     }).filter((teacher): teacher is TeacherProfile => Boolean(teacher)) : [];
-    const chapters = Array.isArray(workspace.chapters) ? workspace.chapters.map(raw => {
+    const chapters = Array.isArray(workspace.chapters) ? workspace.chapters.map((raw, index) => {
       if (!raw || typeof raw !== 'object') return null;
       const chapter = raw as ChapterRecord; const subject = cleanString(chapter.subject, 100); const title = cleanString(chapter.title, 200);
       if (!subject || !title) return null;
-      return { id: cleanString(chapter.id, 100) || crypto.randomUUID(), subject, title, fileName: cleanString(chapter.fileName, 255), uploadedAt: cleanString(chapter.uploadedAt, 50), pages: cleanPages(chapter.pages) };
+      const id = cleanString(chapter.id, 100) || stableId('chapter', `${childId}|${subject}|${title}|${cleanString(chapter.fileName, 255)}|${index}`);
+      return { id, subject, title, fileName: cleanString(chapter.fileName, 255), uploadedAt: cleanString(chapter.uploadedAt, 50), pages: cleanPages(chapter.pages) };
     }).filter((chapter): chapter is ChapterRecord => Boolean(chapter)) : [];
     const chapterIds = new Set(chapters.map(chapter => chapter.id));
     const subjects = cleanSubjectList(workspace.subjects);
     const today: TeachingPlanItem[] = [];
-    if (Array.isArray(workspace.today)) for (const raw of workspace.today) {
+    if (Array.isArray(workspace.today)) for (const [index, raw] of workspace.today.entries()) {
       if (!raw || typeof raw !== 'object') continue;
       const item = raw as TeachingPlanItem; const itemSubject = cleanString(item.subject, 100); const chapterId = cleanString(item.chapterId, 100);
       if (!itemSubject || !chapterId || !chapterIds.has(chapterId)) continue;
       const scope: TeachingScope = item.scope === 'pages' ? 'pages' : 'full_chapter';
       const pageNumbers = Array.isArray(item.pageNumbers) ? [...new Set(item.pageNumbers.map(Number).filter(number => Number.isInteger(number) && number > 0))].sort((a, b) => a - b) : undefined;
       if (scope === 'pages' && !pageNumbers?.length) continue;
-      today.push({ id: cleanString(item.id, 100) || crypto.randomUUID(), subject: itemSubject, topic: cleanString(item.topic, 300), duration: Math.max(1, Math.min(240, Number(item.duration) || 25)), objective: cleanString(item.objective, 500), completed: Boolean(item.completed), scope, chapterId, ...(scope === 'pages' ? { pageNumbers } : {}) });
+      const id = cleanString(item.id, 100) || stableId('plan', `${childId}|${itemSubject}|${chapterId}|${cleanString(item.topic, 300)}|${index}`);
+      today.push({ id, subject: itemSubject, topic: cleanString(item.topic, 300), duration: Math.max(1, Math.min(240, Number(item.duration) || 25)), objective: cleanString(item.objective, 500), completed: Boolean(item.completed), scope, chapterId, ...(scope === 'pages' ? { pageNumbers } : {}) });
     }
     const tests = Array.isArray(workspace.tests) ? workspace.tests.map(raw => raw && typeof raw === 'object' ? raw as TestExam : null).filter((test): test is TestExam => Boolean(test?.id && test.title && test.subject)) : [];
     const homework = Array.isArray(workspace.homework) ? workspace.homework.map(raw => raw && typeof raw === 'object' ? raw as HomeworkItem : null).filter((item): item is HomeworkItem => Boolean(item?.id && item.title && item.subject)) : [];
