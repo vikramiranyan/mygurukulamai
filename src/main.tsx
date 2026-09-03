@@ -29,31 +29,13 @@ function Login({ setSession }: { setSession: (s: AuthSession) => void }) {
       if (cancelled || !window.google || !googleButtonRef.current) return;
       try {
         setGoogleError('');
-        (window.google.accounts.id.initialize as any)({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: (response: { credential?: string }) => {
-            if (!response?.credential) { setGoogleError('Google did not return a sign-in credential. Please try again.'); return; }
-            const session = credentialToSession(response.credential, GOOGLE_CLIENT_ID);
-            if (!session) { setGoogleError('Google sign-in was received but could not be verified. Please try again.'); return; }
-            setSession(session);
-          },
-          cancel_on_tap_outside: false
-        });
+        (window.google.accounts.id.initialize as any)({ client_id: GOOGLE_CLIENT_ID, callback: (response: { credential?: string }) => { if (!response?.credential) { setGoogleError('Google did not return a sign-in credential. Please try again.'); return; } const session = credentialToSession(response.credential, GOOGLE_CLIENT_ID); if (!session) { setGoogleError('Google sign-in was received but could not be verified. Please try again.'); return; } setSession(session); }, cancel_on_tap_outside: false });
         googleButtonRef.current.innerHTML = '';
-        (window.google.accounts.id as any).renderButton(googleButtonRef.current, {
-          type: 'standard', theme: 'filled_blue', size: 'large', text: 'continue_with', shape: 'pill', logo_alignment: 'left',
-          width: Math.min(400, Math.max(260, googleButtonRef.current.clientWidth || 360))
-        });
+        (window.google.accounts.id as any).renderButton(googleButtonRef.current, { type: 'standard', theme: 'filled_blue', size: 'large', text: 'continue_with', shape: 'pill', logo_alignment: 'left', width: Math.min(400, Math.max(260, googleButtonRef.current.clientWidth || 360)) });
         setGoogleReady(true);
-      } catch (error) {
-        console.error('Google Identity Services initialization failed:', error);
-        setGoogleError('Google Sign-In could not be loaded. Please refresh and try again.');
-      }
+      } catch (error) { console.error('Google Identity Services initialization failed:', error); setGoogleError('Google Sign-In could not be loaded. Please refresh and try again.'); }
     };
-    if (window.google?.accounts?.id) init();
-    else timer = window.setInterval(() => {
-      if (window.google?.accounts?.id) { if (timer) window.clearInterval(timer); init(); }
-    }, 100);
+    if (window.google?.accounts?.id) init(); else timer = window.setInterval(() => { if (window.google?.accounts?.id) { if (timer) window.clearInterval(timer); init(); } }, 100);
     return () => { cancelled = true; if (timer) window.clearInterval(timer); };
   }, [setSession]);
   return <div className="login-screen"><header className="login-header"><div className="login-brand"><span className="login-logo">G</span><span><strong>Gurukulam AI</strong><small>Learning made joyful</small></span></div><span className="login-parent-badge">🔒 Parent-controlled</span></header><div className="login-content"><section className="login-hero"><div className="login-copy"><span className="login-eyebrow">A HAPPY PLACE TO LEARN</span><h1>Every lesson can become an adventure.</h1><p>Welcome to a warm, playful learning world where your child can learn, explore and grow with a personal AI teacher.</p></div><div className="login-art-card"><img src="./assets/gurukulam-two-girls-3d.png" alt="Two girls learning" /></div></section><section className="login-card"><div className="login-card-icon">🪔</div><span className="login-card-eyebrow">PARENT SIGN-IN</span><h2>Let’s start the adventure!</h2><p>Sign in securely to set up and guide your child’s learning journey.</p><div className="login-google-button-shell" ref={googleButtonRef} aria-label="Continue with Google" />{googleError && <div className="login-google-error" role="alert">{googleError}</div>}{!googleReady && !googleError && <small className="login-google-loading">Loading Google Sign-In…</small>}<small className="login-privacy">Your account keeps your child’s learning space private and parent-controlled.</small></section></div></div>;
@@ -97,7 +79,7 @@ function App() {
         const workspacePairs = await Promise.all(remote.map(async child => { try { return [child.id, await driveSync.loadWorkspace(child.id)] as const; } catch { return [child.id, null] as const; } }));
         setWorkspace(() => { const next: LearningWorkspace = {}; for (const child of remote) { const remoteWorkspace = workspacePairs.find(([id]) => id === child.id)?.[1]; const timetable = timetablePairs.find(([id]) => id === child.id)?.[1]; next[child.id] = { ...(remoteWorkspace || defaultWorkspace()), subjects: [...new Set([...(remoteWorkspace?.subjects || []), ...(timetable?.subjects || [])])] }; } return next; });
       } finally { setWorkspaceReady(true); }
-    });
+    }, error => { console.error('Google Drive authorization failed:', error); setWorkspaceReady(true); });
   }, [session, driveSync]);
 
   useEffect(() => {
