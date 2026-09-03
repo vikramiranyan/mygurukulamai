@@ -3,6 +3,9 @@ export type LearningPhase = 'teach' | 'practice' | 'check' | 'reteach' | 'master
 export type AnswerRecord = {
   questionId: string;
   correct: boolean;
+  attempts?: number;
+  hintUsed?: boolean;
+  responseMs?: number;
 };
 
 export type LearningSession = {
@@ -12,11 +15,21 @@ export type LearningSession = {
   phase: LearningPhase;
   answers: AnswerRecord[];
   masteryScore: number;
+  startedAt: number;
+  lastActivityAt: number;
+  streak: number;
 };
 
 export function scoreAnswers(answers: AnswerRecord[]): number {
   if (!answers.length) return 0;
-  return Math.round((answers.filter(a => a.correct).length / answers.length) * 100);
+  const weighted = answers.map(answer => {
+    let value = answer.correct ? 1 : 0;
+    if (answer.hintUsed) value -= 0.15;
+    if ((answer.attempts ?? 1) > 1) value -= Math.min(0.2, ((answer.attempts ?? 1) - 1) * 0.05);
+    if (typeof answer.responseMs === 'number' && answer.responseMs > 30000) value -= 0.05;
+    return Math.max(0, Math.min(1, value));
+  });
+  return Math.round((weighted.reduce((sum, value) => sum + value, 0) / weighted.length) * 100);
 }
 
 export function nextPhase(score: number): LearningPhase {
@@ -26,5 +39,12 @@ export function nextPhase(score: number): LearningPhase {
 }
 
 export function startSession(childId: string, subject: string, chapterId: string): LearningSession {
-  return { childId, subject, chapterId, phase: 'teach', answers: [], masteryScore: 0 };
+  const now = Date.now();
+  return { childId, subject, chapterId, phase: 'teach', answers: [], masteryScore: 0, startedAt: now, lastActivityAt: now, streak: 0 };
+}
+
+export function recordSessionAnswer(session: LearningSession, answer: AnswerRecord): LearningSession {
+  const answers = [...session.answers, answer];
+  const streak = answer.correct ? session.streak + 1 : 0;
+  return { ...session, answers, masteryScore: scoreAnswers(answers), phase: nextPhase(scoreAnswers(answers)), lastActivityAt: Date.now(), streak };
 }
