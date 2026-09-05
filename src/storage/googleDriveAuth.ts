@@ -5,7 +5,7 @@
 // is used here because this app's sole persistence layer is the user's own Drive.
 export const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 export type DrivePrompt = '' | 'consent' | 'none' | 'select_account';
-type DriveTokenClient = { requestAccessToken: (overrideConfig?: { prompt?: DrivePrompt }) => void };
+export type DriveTokenClient = { requestAccessToken: (overrideConfig?: { prompt?: DrivePrompt }) => void };
 type DriveTokenResponse = { access_token?: string; scope?: string; error?: string | { error?: string; error_description?: string }; error_description?: string };
 const SILENT_RECOVERY_ERRORS = new Set(['interaction_required', 'login_required', 'consent_required']);
 let driveGrantKnownInMemory = false;
