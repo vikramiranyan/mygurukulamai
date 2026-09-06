@@ -12,7 +12,7 @@ import { LearningHome } from './child/LearningHome';
 import { defaultWorkspace, type ChildWorkspace, type LearningWorkspace } from './learningWorkspace';
 import type { Child } from './types/parent';
 
-const GOOGLE_CLIENT_ID = '96891639304-4hi2fjfnleq59oktf3gflu9c4kei1o31.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() || '96891639304-4hi2fjfnleq59oktf3gflu9c4kei1o31.apps.googleusercontent.com';
 type Menu = 'children' | 'timetable' | 'teachers' | 'subjects' | 'tests' | 'teaching' | 'homework';
 function childId() { return `CHD-${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`; }
 function blankChild(): Child { return { id: childId(), name: '', dob: '', gender: '', grade: '', section: '', school: '', board: '' }; }
