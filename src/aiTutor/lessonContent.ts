@@ -25,9 +25,27 @@ export function getLessonContent(chapterId: string, chapterTitle: string): Lesso
   };
 }
 
+function normalizeAnswer(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .replace(/[^\p{L}\p{N}\s'-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function expectedMatch(answer: string, expected: string): boolean {
+  const target = normalizeAnswer(expected);
+  if (!target) return false;
+  if (answer === target) return true;
+  const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|\\s)${escaped}(?:$|\\s)`, 'u').test(answer);
+}
+
 export function gradeAnswer(input: string, expected: string[]): boolean {
-  const answer = input.trim().toLocaleLowerCase();
+  const answer = normalizeAnswer(input);
   if (!answer) return false;
-  if (!expected.length) return answer.length >= 3;
-  return expected.some(value => answer === value.toLocaleLowerCase() || answer.includes(value.toLocaleLowerCase()));
+  if (!expected.length) return answer.replace(/[^\p{L}\p{N}]/gu, '').length >= 3;
+  return expected.some(value => expectedMatch(answer, value));
 }
