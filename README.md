@@ -31,23 +31,25 @@ Gurukulam AI browser app
 
 The hosted application is intentionally **backend-free**. There is no FastAPI service, PostgreSQL database, Git-backed user registry, or browser storage in the production data path. All child profiles, timetable data, teacher configuration, curriculum workspace and learning progress are loaded from and saved to the authenticated parent's Google Drive.
 
-Google Drive access uses the least-privilege `drive.file` scope. The app keeps OAuth access tokens only in runtime memory and never persists them to browser storage.
+Google Drive access currently uses the full `https://www.googleapis.com/auth/drive` scope because the application must be able to discover and update existing Gurukulam records already present in the parent's Drive, including records created by earlier versions of the application. OAuth access tokens are kept only in runtime memory and are never persisted to browser storage. This scope should be reduced to `drive.file` only after an explicit migration strategy is implemented and verified for existing user records.
 
 ## Google Drive data layout
 
 ```text
-Gurukulam AI/
-└── children/
-    ├── <childId>.json
-    ├── <childId>-timetable.json
-    └── <childId>-learning-workspace.json
+Google Drive
+└── Gurukulam AI/
+    └── children/
+        ├── <childId>.json
+        ├── <childId>-timetable.json
+        └── <childId>-learning-workspace.json
 ```
 
-The application never silently migrates or uploads browser-local child data because there is no browser-local application data store. Google Drive is the authoritative source.
+The application treats Google Drive as the authoritative persistent source. It does not silently fall back to browser storage.
 
 ## Configuration
 
 - Root `/.env.example` documents frontend build-time configuration.
+- `VITE_GOOGLE_CLIENT_ID` may be supplied for the Google OAuth web client; the currently configured project client ID remains the fallback when it is omitted.
 - Provider secrets must never be committed. The repository `.gitignore` excludes local environment files, build output, caches and editor artifacts.
 
 ## Development
