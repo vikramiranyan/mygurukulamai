@@ -5,11 +5,12 @@ import { checkTutorInput, ageAppropriateInstruction } from '../aiTutor/tutorSafe
 import { diagnoseMistake, remediationMessage, recommendNextStep, type LearningSignal } from '../core/adaptiveLearning';
 import { nextPhase, scoreAnswers, startSession, type AnswerRecord, type LearningSession } from '../core/learningSession';
 import { BrowserVoice } from '../voice/browserVoice';
+import { getActiveDriveSync } from '../storage/driveSync';
 import type { Child } from '../types/parent';
-import type { ChapterPage, ChapterRecord, ChildWorkspace } from '../learningWorkspace';
+import type { ChapterPage, ChapterRecord, ChildWorkspace, LearningProgressEntry } from '../learningWorkspace';
 
 type Props = { child: Child; onParents: () => void; signout: () => void; workspace?: ChildWorkspace };
-const emptyWorkspace: ChildWorkspace = { teachers: [], subjects: [], chapters: [], tests: [], today: [], homework: [] };
+const emptyWorkspace: ChildWorkspace = { teachers: [], subjects: [], chapters: [], tests: [], today: [], homework: [], learningProgress: {} };
 
 function teacherNameFor(subject: string, workspace: ChildWorkspace): string | null {
   return workspace.teachers.find(t => t.enabled && t.subjects.includes(subject))?.name || null;
@@ -34,6 +35,8 @@ function childAge(dob: string): number | undefined {
   if (beforeBirthday) age -= 1;
   return age >= 0 && age < 120 ? age : undefined;
 }
+function progressKey(subject: string, chapterId: string): string { return `${subject.trim()}|${chapterId.trim()}`; }
+function progressFromWorkspace(workspace: ChildWorkspace, subject: string, chapterId: string): LearningProgressEntry | undefined { return workspace.learningProgress?.[progressKey(subject, chapterId)]; }
 
 export function LearningHome({ child, onParents, signout, workspace = emptyWorkspace }: Props) {
   const availableSubjects = workspace.subjects;
@@ -65,18 +68,57 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
   useEffect(() => () => { voice.stopSTT(); voice.stopSpeaking(); }, [voice]);
   useEffect(() => { if (!workspace.subjects.includes(subject)) { setSubject(workspace.subjects[0] || ''); setChapterId(''); } }, [workspace.subjects, subject]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const restore = async () => {
+      if (!chapter) return;
+      const driveSync = getActiveDriveSync();
+      let latestWorkspace = workspace;
+      if (driveSync?.authorized) {
+        try { latestWorkspace = (await driveSync.loadWorkspace(child.id)) || workspace; } catch { latestWorkspace = workspace; }
+      }
+      if (cancelled) return;
+      const entry = progressFromWorkspace(latestWorkspace, subject, chapter.id);
+      if (!entry) return;
+      setSession(entry.session as LearningSession);
+      setAnswers(entry.session.answers as AnswerRecord[]);
+      setSignals(entry.signals as LearningSignal[]);
+      const nextIndex = Math.min(entry.session.answers.length, Math.max(0, (lesson?.checks.length || 1) - 1));
+      setCheckIndex(nextIndex);
+      setFeedback(`Welcome back! Your saved mastery for ${chapter.title} is ${entry.session.masteryScore}%.`);
+    };
+    void restore();
+    return () => { cancelled = true; };
+  }, [child.id, chapter?.id, subject]);
+
+  const persistProgress = async (nextSession: LearningSession, nextSignals: LearningSignal[]) => {
+    const driveSync = getActiveDriveSync();
+    if (!driveSync?.authorized || !nextSession.chapterId) return;
+    const key = progressKey(nextSession.subject, nextSession.chapterId);
+    const entry: LearningProgressEntry = { subject: nextSession.subject, chapterId: nextSession.chapterId, session: nextSession, signals: nextSignals.map(signal => ({ questionId: signal.questionId, correct: signal.correct, attempts: signal.attempts })), updatedAt: Date.now() };
+    const nextWorkspace: ChildWorkspace = { ...workspace, learningProgress: { ...(workspace.learningProgress || {}), [key]: entry } };
+    try { await driveSync.saveWorkspace(child.id, nextWorkspace); }
+    catch (error) { console.error('Learning progress save failed:', error); setFeedback('Your answer was recorded here, but Google Drive could not save the progress yet. We will retry on the next answer.'); }
+  };
+
   const resetForSubject = (nextSubject: string) => {
     voice.stopSTT(); voice.stopSpeaking(); setListening(false); setSpeaking(false);
     const nextChapter = workspace.chapters.find(item => item.subject === nextSubject);
-    setSubject(nextSubject); setChapterId(nextChapter?.id || ''); setSession(null); setAnswers([]); setSignals([]); setFeedback(''); setCheckIndex(0); setStudentAnswer(''); setQuestion('');
+    const saved = nextChapter ? progressFromWorkspace(workspace, nextSubject, nextChapter.id) : undefined;
+    setSubject(nextSubject); setChapterId(nextChapter?.id || ''); setSession(saved?.session as LearningSession | null); setAnswers((saved?.session.answers as AnswerRecord[]) || []); setSignals((saved?.signals as LearningSignal[]) || []); setFeedback(saved ? `Saved mastery: ${saved.session.masteryScore}%.` : ''); setCheckIndex(saved ? Math.min(saved.session.answers.length, Math.max(0, (getLessonContent(nextChapter?.id || '', nextChapter?.title || '').checks.length || 1) - 1)) : 0); setStudentAnswer(''); setQuestion('');
   };
   const resetChapter = (nextChapter: ChapterRecord) => {
     voice.stopSTT(); voice.stopSpeaking(); setListening(false); setSpeaking(false);
-    setChapterId(nextChapter.id); setSession(null); setAnswers([]); setSignals([]); setFeedback(''); setCheckIndex(0); setStudentAnswer('');
+    const saved = progressFromWorkspace(workspace, subject, nextChapter.id);
+    setChapterId(nextChapter.id); setSession(saved?.session as LearningSession | null); setAnswers((saved?.session.answers as AnswerRecord[]) || []); setSignals((saved?.signals as LearningSignal[]) || []); setFeedback(saved ? `Saved mastery: ${saved.session.masteryScore}%.` : ''); setCheckIndex(saved ? Math.min(saved.session.answers.length, Math.max(0, (getLessonContent(nextChapter.id, nextChapter.title).checks.length || 1) - 1)) : 0); setStudentAnswer('');
   };
   const begin = () => {
     if (!chapter || !teacherName) { setFeedback('Your parent must assign a teacher to this subject before the lesson can start.'); return; }
-    setSession(startSession(child.id, subject, chapter.id)); setAnswers([]); setSignals([]); setCheckIndex(0); setStudentAnswer(''); setFeedback('');
+    const saved = progressFromWorkspace(workspace, subject, chapter.id);
+    if (saved) { setSession(saved.session as LearningSession); setAnswers(saved.session.answers as AnswerRecord[]); setSignals(saved.signals as LearningSignal[]); setCheckIndex(Math.min(saved.session.answers.length, Math.max(0, (lesson?.checks.length || 1) - 1))); setFeedback(`Welcome back! Your saved mastery is ${saved.session.masteryScore}%.`); return; }
+    const nextSession = startSession(child.id, subject, chapter.id);
+    setSession(nextSession); setAnswers([]); setSignals([]); setCheckIndex(0); setStudentAnswer(''); setFeedback('');
+    void persistProgress(nextSession, []);
   };
   const speakFeedback = async (text: string) => {
     if (!text || !voice.supportsTTS()) return;
@@ -127,13 +169,16 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
     const attempts = answers.filter(answer => answer.questionId === check.id).length + 1;
     const correct = gradeAnswer(studentAnswer, check.expected);
     const diagnosis = diagnoseMistake(studentAnswer, check.expected);
-    const nextAnswers = [...answers, { questionId: check.id, correct }];
+    const nextAnswers: AnswerRecord[] = [...answers, { questionId: check.id, correct, attempts }];
     const nextSignals: LearningSignal[] = [...signals, { questionId: check.id, correct, attempts }];
     const score = scoreAnswers(nextAnswers); const phase = nextPhase(score);
     const nextAdaptive = recommendNextStep(nextSignals, score / 100);
+    const baseSession = session || startSession(child.id, subject, chapter?.id || 'lesson');
+    const nextSession: LearningSession = { ...baseSession, childId: child.id, subject, chapterId: chapter?.id || baseSession.chapterId, phase, answers: nextAnswers, masteryScore: score, lastActivityAt: Date.now(), streak: correct ? baseSession.streak + 1 : 0 };
     const message = correct ? `Correct! Your current mastery is ${score}%. ${nextAdaptive.band === 'advance' ? 'You are ready for a challenge!' : 'Let’s keep building this skill.'}` : `${remediationMessage(chapter?.title || subject, diagnosis)} ${nextAdaptive.band === 'reteach' ? 'We will slow down and try a simpler example.' : 'Then we will try another check.'}`;
-    setAnswers(nextAnswers); setSignals(nextSignals); setSession({ ...(session || startSession(child.id, subject, chapter?.id || 'lesson')), phase, answers: nextAnswers, masteryScore: score });
-    setFeedback(message); setStudentAnswer(''); if (checkIndex < lesson.checks.length - 1) setCheckIndex(checkIndex + 1); else void speakFeedback(message);
+    setAnswers(nextAnswers); setSignals(nextSignals); setSession(nextSession); setFeedback(message); setStudentAnswer('');
+    void persistProgress(nextSession, nextSignals);
+    if (checkIndex < lesson.checks.length - 1) setCheckIndex(checkIndex + 1); else void speakFeedback(message);
   };
 
   return <div className="app dashboard-app child-dashboard-v2" style={{ minHeight: '100vh' }}>
