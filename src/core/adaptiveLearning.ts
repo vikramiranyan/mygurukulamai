@@ -2,7 +2,7 @@ export type MasteryBand = 'reteach' | 'practice' | 'advance';
 
 export type LearningSignal = {
   correct: boolean;
-  questionId?: string;
+  questionId: string;
   responseMs?: number;
   hintUsed?: boolean;
   attempts?: number;
@@ -22,7 +22,6 @@ function effectiveAttempts(signals: LearningSignal[], index: number): number {
   const explicit = signals[index]?.attempts;
   if (typeof explicit === 'number' && Number.isFinite(explicit) && explicit >= 1) return explicit;
   const questionKey = signals[index]?.questionId;
-  if (!questionKey) return 1;
   return signals.slice(0, index + 1).filter(signal => signal.questionId === questionKey).length;
 }
 
