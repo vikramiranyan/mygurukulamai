@@ -5,15 +5,55 @@ export type ChapterRecord = { id: string; subject: string; title: string; fileNa
 export type TeachingScope = 'full_chapter' | 'pages';
 export type TeachingPlanItem = { id: string; subject: string; topic: string; duration: number; objective: string; completed: boolean; scope: TeachingScope; chapterId?: string; pageNumbers?: number[] };
 export type HomeworkItem = { id: string; subject: string; title: string; instructions: string; dueDate: string; status: 'Pending' | 'Submitted' | 'Completed' };
-export type ChildWorkspace = { teachers: TeacherProfile[]; subjects: string[]; chapters: ChapterRecord[]; tests: TestExam[]; today: TeachingPlanItem[]; homework: HomeworkItem[] };
+export type PersistedLearningSession = { childId: string; subject: string; chapterId: string; phase: 'teach' | 'practice' | 'check' | 'reteach' | 'mastered'; answers: { questionId: string; correct: boolean; attempts?: number; hintUsed?: boolean; responseMs?: number }[]; masteryScore: number; startedAt: number; lastActivityAt: number; streak: number };
+export type PersistedLearningSignal = { questionId: string; correct: boolean; attempts?: number };
+export type LearningProgressEntry = { subject: string; chapterId: string; session: PersistedLearningSession; signals: PersistedLearningSignal[]; updatedAt: number };
+export type LearningProgress = Record<string, LearningProgressEntry>;
+export type ChildWorkspace = { teachers: TeacherProfile[]; subjects: string[]; chapters: ChapterRecord[]; tests: TestExam[]; today: TeachingPlanItem[]; homework: HomeworkItem[]; learningProgress?: LearningProgress };
 export type LearningWorkspace = Record<string, ChildWorkspace>;
 
-export function defaultWorkspace(subjects: string[] = []): ChildWorkspace { return { teachers: [], subjects: cleanSubjectList(subjects), chapters: [], tests: [], today: [], homework: [] }; }
+export function defaultWorkspace(subjects: string[] = []): ChildWorkspace { return { teachers: [], subjects: cleanSubjectList(subjects), chapters: [], tests: [], today: [], homework: [], learningProgress: {} }; }
 function cleanString(value: unknown, max = 500): string { return typeof value === 'string' ? value.replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, max) : ''; }
 function cleanSubjectList(value: unknown): string[] { return Array.isArray(value) ? [...new Set(value.map(item => cleanString(item, 100)).filter(Boolean))] : []; }
 function cleanPages(value: unknown): ChapterPage[] { if (!Array.isArray(value)) return []; return value.map(page => { if (!page || typeof page !== 'object') return null; const raw = page as ChapterPage; const number = Number(raw.number); return { number: Number.isInteger(number) && number > 0 ? number : 1, text: cleanString(raw.text, 6000) }; }).filter((page): page is ChapterPage => Boolean(page)); }
 function stableId(prefix: string, seed: string): string { let hash = 2166136261; for (const char of seed) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); } return `${prefix}-${(hash >>> 0).toString(36)}`; }
 function cleanStatus(value: unknown, allowed: readonly string[], fallback: string): string { return typeof value === 'string' && allowed.includes(value) ? value : fallback; }
+function cleanProgress(value: unknown, childId: string): LearningProgress {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const result: LearningProgress = {};
+  for (const [rawKey, rawEntry] of Object.entries(value as Record<string, unknown>)) {
+    if (!rawEntry || typeof rawEntry !== 'object' || Array.isArray(rawEntry)) continue;
+    const entry = rawEntry as Partial<LearningProgressEntry>;
+    const subject = cleanString(entry.subject, 100); const chapterId = cleanString(entry.chapterId, 100);
+    if (!subject || !chapterId || !entry.session || typeof entry.session !== 'object') continue;
+    const rawSession = entry.session as Partial<PersistedLearningSession>;
+    const answers = Array.isArray(rawSession.answers) ? rawSession.answers.map(raw => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+      const answer = raw as PersistedLearningSession['answers'][number]; const questionId = cleanString(answer.questionId, 150);
+      if (!questionId) return null;
+      return { questionId, correct: Boolean(answer.correct), ...(Number.isFinite(Number(answer.attempts)) ? { attempts: Math.max(1, Number(answer.attempts)) } : {}), ...(typeof answer.hintUsed === 'boolean' ? { hintUsed: answer.hintUsed } : {}), ...(Number.isFinite(Number(answer.responseMs)) ? { responseMs: Math.max(0, Number(answer.responseMs)) } : {}) };
+    }).filter((answer): answer is PersistedLearningSession['answers'][number] => Boolean(answer)) : [];
+    const session: PersistedLearningSession = {
+      childId: cleanString(rawSession.childId, 150) || childId,
+      subject,
+      chapterId,
+      phase: ['teach', 'practice', 'check', 'reteach', 'mastered'].includes(String(rawSession.phase)) ? rawSession.phase as PersistedLearningSession['phase'] : 'teach',
+      answers,
+      masteryScore: Math.max(0, Math.min(100, Number(rawSession.masteryScore) || 0)),
+      startedAt: Number.isFinite(Number(rawSession.startedAt)) ? Number(rawSession.startedAt) : Date.now(),
+      lastActivityAt: Number.isFinite(Number(rawSession.lastActivityAt)) ? Number(rawSession.lastActivityAt) : Date.now(),
+      streak: Math.max(0, Number(rawSession.streak) || 0),
+    };
+    const signals = Array.isArray(entry.signals) ? entry.signals.map(raw => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+      const signal = raw as PersistedLearningSignal; const questionId = cleanString(signal.questionId, 150); if (!questionId) return null;
+      return { questionId, correct: Boolean(signal.correct), ...(Number.isFinite(Number(signal.attempts)) ? { attempts: Math.max(1, Number(signal.attempts)) } : {}) };
+    }).filter((signal): signal is PersistedLearningSignal => Boolean(signal)) : [];
+    const key = cleanString(rawKey, 250) || `${subject}|${chapterId}`;
+    result[key] = { subject, chapterId, session, signals, updatedAt: Number.isFinite(Number(entry.updatedAt)) ? Number(entry.updatedAt) : Date.now() };
+  }
+  return result;
+}
 
 export function normalizeWorkspace(value: unknown): LearningWorkspace {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
@@ -62,7 +102,7 @@ export function normalizeWorkspace(value: unknown): LearningWorkspace {
       if (!title || !subject) return null;
       return { id, subject, title, instructions: cleanString(item.instructions, 2000), dueDate: cleanString(item.dueDate, 50), status: cleanStatus(item.status, ['Pending', 'Submitted', 'Completed'], 'Pending') as HomeworkItem['status'] };
     }).filter((item): item is HomeworkItem => Boolean(item)) : [];
-    result[childId] = { teachers, subjects, chapters, tests, today, homework };
+    result[childId] = { teachers, subjects, chapters, tests, today, homework, learningProgress: cleanProgress(workspace.learningProgress, childId) };
   }
   return result;
 }
