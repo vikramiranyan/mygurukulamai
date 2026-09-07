@@ -5,6 +5,9 @@ import { loadLearningWorkspace, removeLearningWorkspace, saveLearningWorkspace }
 import { DriveApiError, probeDriveAccess, clearDriveFolderCache } from './googleDrive';
 import { normalizeWorkspace, type ChildWorkspace } from '../learningWorkspace';
 
+let activeDriveSync: DriveSyncController | null = null;
+export function getActiveDriveSync(): DriveSyncController | null { return activeDriveSync; }
+
 export class DriveSyncController {
   private client: DriveTokenClient | null = null;
   private token = '';
@@ -13,6 +16,8 @@ export class DriveSyncController {
   private rejectToken: ((error: unknown) => void) | null = null;
   private configurationVersion = 0;
   private reconnecting = false;
+
+  constructor() { activeDriveSync = this; }
 
   configure(clientId: string, onToken: (token: string) => void, onError: (error: unknown) => void): boolean {
     this.rejectToken?.(new Error('Google Drive session changed'));
@@ -99,47 +104,14 @@ export class DriveSyncController {
     }
   }
 
-  async loadChildren(): Promise<DriveChildRecord[]> {
-    return this.withDriveRetry(loadChildrenFromDrive);
-  }
-
-  async saveChild(child: DriveChildRecord) {
-    return this.withDriveRetry(token => saveChildToDrive(token, child));
-  }
-
-  async removeChild(childId: string): Promise<void> {
-    await this.withDriveRetry(async token => {
-      await removeLearningWorkspace(token, childId);
-      await removeChildFromDrive(token, childId);
-    });
-  }
-
-  async loadTimetable(childId: string): Promise<ChildTimetableRecord | null> {
-    return this.withDriveRetry(token => loadChildTimetable(token, childId));
-  }
-
-  async saveTimetable(record: ChildTimetableRecord) {
-    return this.withDriveRetry(token => saveChildTimetable(token, record));
-  }
-
-  async updateSubjects(childId: string, subjects: string[], auditEntry: ChildTimetableRecord['audit'][number]): Promise<ChildTimetableRecord> {
-    return this.withDriveRetry(token => updateChildSubjects(token, childId, subjects, auditEntry));
-  }
-
-  async loadWorkspace(childId: string): Promise<ChildWorkspace | null> {
-    return this.withDriveRetry(async token => {
-      const workspace = await loadLearningWorkspace(token, childId);
-      return workspace ? normalizeWorkspace({ [childId]: workspace })[childId] : null;
-    });
-  }
-
-  async saveWorkspace(childId: string, workspace: ChildWorkspace): Promise<void> {
-    await this.withDriveRetry(async token => {
-      const timetable = await loadChildTimetable(token, childId);
-      const nextWorkspace = timetable ? { ...workspace, subjects: timetable.subjects } : workspace;
-      await saveLearningWorkspace(token, childId, nextWorkspace);
-    });
-  }
+  async loadChildren(): Promise<DriveChildRecord[]> { return this.withDriveRetry(loadChildrenFromDrive); }
+  async saveChild(child: DriveChildRecord) { return this.withDriveRetry(token => saveChildToDrive(token, child)); }
+  async removeChild(childId: string): Promise<void> { await this.withDriveRetry(async token => { await removeLearningWorkspace(token, childId); await removeChildFromDrive(token, childId); }); }
+  async loadTimetable(childId: string): Promise<ChildTimetableRecord | null> { return this.withDriveRetry(token => loadChildTimetable(token, childId)); }
+  async saveTimetable(record: ChildTimetableRecord) { return this.withDriveRetry(token => saveChildTimetable(token, record)); }
+  async updateSubjects(childId: string, subjects: string[], auditEntry: ChildTimetableRecord['audit'][number]): Promise<ChildTimetableRecord> { return this.withDriveRetry(token => updateChildSubjects(token, childId, subjects, auditEntry)); }
+  async loadWorkspace(childId: string): Promise<ChildWorkspace | null> { return this.withDriveRetry(async token => { const workspace = await loadLearningWorkspace(token, childId); return workspace ? normalizeWorkspace({ [childId]: workspace })[childId] : null; }); }
+  async saveWorkspace(childId: string, workspace: ChildWorkspace): Promise<void> { await this.withDriveRetry(async token => { const timetable = await loadChildTimetable(token, childId); const nextWorkspace = timetable ? { ...workspace, subjects: timetable.subjects } : workspace; await saveLearningWorkspace(token, childId, nextWorkspace); }); }
 
   reset(): void {
     clearDriveFolderCache(this.token || undefined);
@@ -151,5 +123,6 @@ export class DriveSyncController {
     this.resolveToken = null;
     this.rejectToken = null;
     this.reconnecting = false;
+    if (activeDriveSync === this) activeDriveSync = null;
   }
 }
