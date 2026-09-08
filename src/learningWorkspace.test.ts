@@ -52,7 +52,7 @@ describe('learning workspace normalization', () => {
 
   it('normalizes default subjects consistently', () => {
     expect(defaultWorkspace([' Math ', 'Math', '', 'Science'])).toEqual({
-      teachers: [], subjects: ['Math', 'Science'], chapters: [], tests: [], today: [], homework: [],
+      teachers: [], subjects: ['Math', 'Science'], chapters: [], tests: [], today: [], homework: [], learningProgress: {},
     });
   });
 });
