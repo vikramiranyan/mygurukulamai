@@ -1,5 +1,5 @@
 import { ensureGurukulamFolders, findNamedChildFile, readFile, writeJson, deleteFile, type DriveFile } from './googleDrive';
-import type { ChildWorkspace, LearningProgress, LearningProgressEntry } from '../learningWorkspace';
+import type { ChildWorkspace, LearningProgress } from '../learningWorkspace';
 
 const workspaceFileName = (childId: string) => `${childId}-learning-workspace.json`;
 function validChildId(childId: string): boolean { return /^[A-Za-z0-9_-]{1,80}$/.test(childId); }
@@ -40,8 +40,7 @@ export async function saveLearningWorkspace(token: string, childId: string, work
     if (persisted && typeof persisted === 'object') {
       const existingProgress = persisted.learningProgress ?? {};
       const incomingProgress = workspace.learningProgress ?? {};
-      const mergedProgress = mergeLearningProgress(existingProgress, incomingProgress);
-      workspaceToSave = { ...workspace, learningProgress: mergedProgress };
+      workspaceToSave = { ...workspace, learningProgress: mergeLearningProgress(existingProgress, incomingProgress) };
     }
   }
 
