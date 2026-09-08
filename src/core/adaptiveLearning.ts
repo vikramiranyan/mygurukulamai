@@ -19,10 +19,11 @@ export type AdaptiveRecommendation = {
 function clamp(value: number, min = 0, max = 1): number { return Math.max(min, Math.min(max, value)); }
 
 function effectiveAttempts(signals: LearningSignal[], index: number): number {
-  const explicit = signals[index]?.attempts;
+  const current = signals[index];
+  if (!current) return 1;
+  const explicit = current.attempts;
   if (typeof explicit === 'number' && Number.isFinite(explicit) && explicit >= 1) return explicit;
-  const questionKey = signals[index]?.questionId;
-  return signals.slice(0, index + 1).filter(signal => signal.questionId === questionKey).length;
+  return signals.slice(0, index + 1).filter(signal => signal.questionId === current.questionId).length;
 }
 
 export function scoreLearningSignals(signals: LearningSignal[]): number {
