@@ -72,3 +72,15 @@ export function credentialToSession(
     expiresAt
   };
 }
+
+export async function verifyCredentialOnServer(token: string, apiBaseUrl: string, signal?: AbortSignal): Promise<AuthSession> {
+  const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/api/auth/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credential: token }),
+    signal,
+  });
+  const payload = await response.json().catch(() => null) as Partial<AuthSession> & { error?: string };
+  if (!response.ok || !payload.user || typeof payload.expiresAt !== 'number') throw new Error(payload.error || 'Google sign-in could not be verified by the server.');
+  return payload as AuthSession;
+}

@@ -50,4 +50,16 @@ describe('timetable parser', () => {
     expect(subjects).not.toContain('Lunch');
     expect(periods).toContainEqual(expect.objectContaining({ day: 'Thursday', start: '09:00', end: '09:35', subject: 'Language Lab' }));
   });
+
+  it('repairs vertically split PDF time fragments before parsing columnar rows', () => {
+    const text = [
+      '8:00-8:15 am 8:15-8:25 am 8:25-9:00 am 9:00-9:35 am 9:35-10:10 am 10:10-10:4 5 am 10:45-11:05 am 11:05-11:45 am 11:45-12:25 pm 12:25-1:05 pm 1:05-1:4 5 pm',
+      'MON Assembly Time Fruit Break ENGLISH (Course Book) COMPUTER HINDI (Notebook) TK LUNCH DRAWING EVS (Notebook) MATHS (Course Book) DEAR',
+    ].join('\n');
+
+    const periods = parseTimetableText(text);
+
+    expect(periods).toContainEqual(expect.objectContaining({ day: 'Monday', start: '10:10', end: '10:45' }));
+    expect(periods).toContainEqual(expect.objectContaining({ day: 'Monday', start: '13:05', end: '13:45' }));
+  });
 });

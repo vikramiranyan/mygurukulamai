@@ -1,4 +1,4 @@
-import { ensureGurukulamFolders, findChildFile, listChildFiles, listChildRecordFilesAcrossDrive, readFile, writeJson, deleteFile } from './googleDrive';
+import { ensureGurukulamFolders, findChildFile, listChildFiles, readFile, writeJson, deleteFile } from './googleDrive';
 import type { DriveFile } from './googleDrive';
 
 export type DriveChildRecord = {
@@ -18,8 +18,7 @@ const isChildRecordFile = (file: DriveFile) => /^CHD-[A-Z0-9]+\.json$/.test(file
 export async function loadChildrenFromDrive(token: string): Promise<DriveChildRecord[]> {
   const { childrenId } = await ensureGurukulamFolders(token);
   const localFiles = await listChildFiles(token, childrenId);
-  const discoveredFiles = await listChildRecordFilesAcrossDrive(token);
-  const childFiles = [...new Map([...localFiles, ...discoveredFiles].filter(isChildRecordFile).map(file => [file.id, file])).values()];
+  const childFiles = localFiles.filter(isChildRecordFile);
   const records = await Promise.all(childFiles.map(async file => {
     try {
       const record = await readFile<DriveChildRecord>(token, file.id);

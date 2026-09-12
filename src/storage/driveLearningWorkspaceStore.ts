@@ -55,3 +55,36 @@ export async function removeLearningWorkspace(token: string, childId: string): P
   const file = await findWorkspaceFile(token, childrenId, childId);
   if (file) await deleteFile(token, file.id);
 }
+
+export async function renameWorkspaceSubject(token: string, childId: string, previousSubject: string, nextSubject: string): Promise<void> {
+  const workspace = await loadLearningWorkspace(token, childId);
+  if (!workspace) return;
+  const matches = (value: string) => value.localeCompare(previousSubject, undefined, { sensitivity: 'accent' }) === 0;
+  await saveLearningWorkspace(token, childId, {
+    ...workspace,
+    subjects: workspace.subjects.map(value => matches(value) ? nextSubject : value),
+    chapters: workspace.chapters.map(item => matches(item.subject) ? { ...item, subject: nextSubject } : item),
+    teachers: workspace.teachers.map(item => ({ ...item, subjects: item.subjects.map(value => matches(value) ? nextSubject : value) })),
+    tests: workspace.tests.map(item => matches(item.subject) ? { ...item, subject: nextSubject } : item),
+    today: workspace.today.map(item => matches(item.subject) ? { ...item, subject: nextSubject } : item),
+    homework: workspace.homework.map(item => matches(item.subject) ? { ...item, subject: nextSubject } : item),
+  });
+}
+
+export async function deleteWorkspaceSubject(token: string, childId: string, subject: string): Promise<void> {
+  const workspace = await loadLearningWorkspace(token, childId);
+  if (!workspace) return;
+  const matches = (value: string) => value.localeCompare(subject, undefined, { sensitivity: 'accent' }) === 0;
+  const chapterIds = new Set(workspace.chapters.filter(item => matches(item.subject)).map(item => item.id));
+  const learningProgress = Object.fromEntries(Object.entries(workspace.learningProgress || {}).filter(([, item]) => !matches(item.subject)));
+  await saveLearningWorkspace(token, childId, {
+    ...workspace,
+    subjects: workspace.subjects.filter(value => !matches(value)),
+    chapters: workspace.chapters.filter(item => !matches(item.subject)),
+    teachers: workspace.teachers.map(item => ({ ...item, subjects: item.subjects.filter(value => !matches(value)) })).filter(item => item.subjects.length),
+    tests: workspace.tests.filter(item => !matches(item.subject)),
+    today: workspace.today.filter(item => !matches(item.subject) && !(item.chapterId && chapterIds.has(item.chapterId))),
+    homework: workspace.homework.filter(item => !matches(item.subject)),
+    learningProgress,
+  });
+}

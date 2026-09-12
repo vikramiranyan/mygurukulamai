@@ -1,7 +1,7 @@
-import { createDriveTokenClient, requestDriveAccess, type DriveTokenClient } from './googleDriveAuth';
+import { createDriveTokenClient, requestDriveAccess, type DrivePrompt, type DriveTokenClient } from './googleDriveAuth';
 import { loadChildrenFromDrive, removeChildFromDrive, saveChildToDrive, type DriveChildRecord } from './driveChildStore';
 import { loadChildTimetable, saveChildTimetable, updateChildSubjects, type ChildTimetableRecord } from './driveTimetableStore';
-import { loadLearningWorkspace, removeLearningWorkspace, saveLearningWorkspace } from './driveLearningWorkspaceStore';
+import { deleteWorkspaceSubject, loadLearningWorkspace, removeLearningWorkspace, renameWorkspaceSubject, saveLearningWorkspace } from './driveLearningWorkspaceStore';
 import { DriveApiError, probeDriveAccess, clearDriveFolderCache } from './googleDrive';
 import { normalizeWorkspace, type ChildWorkspace } from '../learningWorkspace';
 
@@ -58,9 +58,9 @@ export class DriveSyncController {
     return Boolean(this.client);
   }
 
-  authorize(): void {
+  authorize(prompt?: DrivePrompt): void {
     if (!this.client) throw new Error('Google Drive authorization is not ready');
-    requestDriveAccess(this.client);
+    requestDriveAccess(this.client, prompt);
   }
 
   async ensureConnection(): Promise<boolean> {
@@ -112,6 +112,8 @@ export class DriveSyncController {
   async updateSubjects(childId: string, subjects: string[], auditEntry: ChildTimetableRecord['audit'][number]): Promise<ChildTimetableRecord> { return this.withDriveRetry(token => updateChildSubjects(token, childId, subjects, auditEntry)); }
   async loadWorkspace(childId: string): Promise<ChildWorkspace | null> { return this.withDriveRetry(async token => { const workspace = await loadLearningWorkspace(token, childId); return workspace ? normalizeWorkspace({ [childId]: workspace })[childId] : null; }); }
   async saveWorkspace(childId: string, workspace: ChildWorkspace): Promise<void> { await this.withDriveRetry(async token => { const timetable = await loadChildTimetable(token, childId); const nextWorkspace = timetable ? { ...workspace, subjects: timetable.subjects } : workspace; await saveLearningWorkspace(token, childId, nextWorkspace); }); }
+  async renameSubject(childId: string, previousSubject: string, nextSubject: string): Promise<void> { await this.withDriveRetry(token => renameWorkspaceSubject(token, childId, previousSubject, nextSubject)); }
+  async deleteSubject(childId: string, subject: string): Promise<void> { await this.withDriveRetry(token => deleteWorkspaceSubject(token, childId, subject)); }
 
   reset(): void {
     clearDriveFolderCache(this.token || undefined);

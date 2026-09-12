@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { getDocument as getPdfDocument } from './timetable/pdfjsClient';
 import type { Child } from './types/parent';
 import type { ChapterPage, ChapterRecord, ChildWorkspace, HomeworkItem, TeachingPlanItem, TeachingScope, TeacherProfile, TestExam } from './learningWorkspace';
+import { createBookCoverProposal, type BookCoverProposal } from './curriculum/bookCoverProposal';
 
 const MAX_CHAPTER_SIZE = 15 * 1024 * 1024;
 
@@ -43,8 +44,18 @@ async function createOcrImage(file: File): Promise<HTMLCanvasElement> {
 async function extractChapterPages(file: File): Promise<ChapterPage[]> {
   if (file.name.toLowerCase().endsWith('.pdf')) return extractPdfPages(file);
   const mod = await import('tesseract.js');
-  const image = await createOcrImage(file);
-  const result = await (mod.recognize as any)(image, 'eng', { tessedit_pageseg_mode: 11 });
+  let result;
+  try {
+    const image = await createOcrImage(file);
+    result = await (mod.recognize as any)(image, 'eng', { tessedit_pageseg_mode: 11 });
+  } catch (preprocessedError) {
+    // Some mobile browsers cannot decode a canvas from a camera image. Let Tesseract read the file directly.
+    try {
+      result = await mod.recognize(file, 'eng');
+    } catch {
+      throw preprocessedError;
+    }
+  }
   const text = String(result.data.text || '').replace(/\s+/g, ' ').trim();
   if (!text) throw new Error('No readable text detected in this image. Try a clearer image with good contrast.');
   return [{ number: 1, text: text.slice(0, 6000) }];
@@ -62,11 +73,13 @@ export function ParentLearningTools({ mode, children, active, setActive, workspa
   const [subject, setSubject] = useState(workspace.subjects[0] || '');
   const [date, setDate] = useState('');
   const [topic, setTopic] = useState('');
+  const [testType, setTestType] = useState<TestExam['type']>('Gurukulam');
   const [scope, setScope] = useState<TeachingScope>('full_chapter');
   const [chapterId, setChapterId] = useState('');
   const [pageNumbers, setPageNumbers] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [coverProposal, setCoverProposal] = useState<BookCoverProposal | null>(null);
 
   useEffect(() => { if (!workspace.subjects.includes(subject)) setSubject(workspace.subjects[0] || ''); }, [workspace.subjects, subject]);
   const subjectChapters = useMemo(() => workspace.chapters.filter(chapter => chapter.subject === subject), [workspace.chapters, subject]);
@@ -113,11 +126,51 @@ export function ParentLearningTools({ mode, children, active, setActive, workspa
     if (file.size > MAX_CHAPTER_SIZE) { setNotice('Chapter file is too large. Maximum allowed size is 15 MB.'); return; }
     const title = window.prompt(`Chapter name for ${subject}`, file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim()); if (!title?.trim()) return;
     setBusy(true); setNotice('Reading chapter pages…');
-    try { const pages = await extractChapterPages(file); if (!pages.length) throw new Error('No pages could be read from this file.'); const chapter: ChapterRecord = { id: crypto.randomUUID(), subject, title: title.trim(), fileName: file.name, uploadedAt: new Date().toISOString(), pages }; setWorkspace({ ...workspace, chapters: [...workspace.chapters, chapter] }); setChapterId(chapter.id); setPageNumbers([]); setNotice(`${chapter.title} uploaded under ${subject} with ${pages.length} page${pages.length === 1 ? '' : 's'}.`); } catch (error) { setNotice(error instanceof Error ? error.message : 'Chapter could not be read.'); } finally { setBusy(false); }
+    try { const pages = await extractChapterPages(file); if (!pages.length) throw new Error('No pages could be read from this file.'); const chapter: ChapterRecord = { id: crypto.randomUUID(), subject, title: title.trim(), fileName: file.name, uploadedAt: new Date().toISOString(), pages }; setWorkspace({ ...workspace, chapters: [...workspace.chapters, chapter] }); setChapterId(chapter.id); setPageNumbers([]); setNotice(`${chapter.title} uploaded under ${subject} with ${pages.length} page${pages.length === 1 ? '' : 's'}.`);     } catch (error) {
+      setNotice(error instanceof Error ? `Chapter could not be read: ${error.message}` : 'Chapter could not be read. For a front cover, use “Find book from cover”.');
+    } finally { setBusy(false); }
+  };
+
+  const uploadBookCover = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; event.target.value = ''; if (!file) return;
+    if (!/\.(png|jpe?g)$/i.test(file.name)) { setNotice('Upload a JPG, JPEG or PNG front cover.'); return; }
+    if (file.size > 10 * 1024 * 1024) { setNotice('Book cover is too large. Maximum allowed size is 10 MB.'); return; }
+    if (!subject) { setNotice('Select a subject before uploading a book cover.'); return; }
+    setBusy(true); setNotice('AI is reading the book cover…');
+    try {
+      const mod = await import('tesseract.js');
+      const result = await mod.recognize(file, 'eng');
+      const proposal = createBookCoverProposal(String(result.data.text || ''), subject, child.grade);
+      setCoverProposal(proposal);
+      setNotice('Book found. Review the proposed chapter details before accepting them.');
+    } catch (error) {
+      setNotice(error instanceof Error ? `Book cover could not be read: ${error.message}` : 'Book cover could not be read. Try a clear JPG or PNG image.');
+    } finally { setBusy(false); }
+  };
+
+  const updateCoverChapter = (index: number, key: 'title' | 'summary', value: string) => {
+    if (!coverProposal) return;
+    setCoverProposal({ ...coverProposal, chapters: coverProposal.chapters.map((chapter, chapterIndex) => chapterIndex === index ? { ...chapter, [key]: value } : chapter) });
+  };
+
+  const acceptCoverProposal = () => {
+    if (!coverProposal) return;
+    const chapters = coverProposal.chapters
+      .map(chapter => ({ ...chapter, title: chapter.title.trim(), summary: chapter.summary.trim() }))
+      .filter(chapter => chapter.title);
+    if (!chapters.length) { setNotice('Add at least one chapter before accepting the book.'); return; }
+    const now = new Date().toISOString();
+    const records: ChapterRecord[] = chapters.map(chapter => ({
+      id: crypto.randomUUID(), subject, title: chapter.title, fileName: `AI book lookup · ${coverProposal.displayTitle}`,
+      uploadedAt: now, pages: [{ number: 1, text: chapter.summary || `Chapter details for ${chapter.title} are ready for review.` }],
+    }));
+    setWorkspace({ ...workspace, chapters: [...workspace.chapters, ...records] });
+    setCoverProposal(null); setChapterId(records[0].id);
+    setNotice(`${coverProposal.displayTitle} accepted with ${records.length} chapter${records.length === 1 ? '' : 's'} under ${subject}.`);
   };
 
   const deleteChapter = (chapter: ChapterRecord) => { if (!window.confirm(`Delete “${chapter.title}” and all of its page data?`)) return; setWorkspace({ ...workspace, chapters: workspace.chapters.filter(item => item.id !== chapter.id), today: workspace.today.filter(item => item.chapterId !== chapter.id) }); if (chapterId === chapter.id) setChapterId(''); setNotice(`Chapter “${chapter.title}” deleted.`); };
-  const addTest = () => { if (!text.trim() || !subject || !date) { setNotice('Enter a test name, subject and date.'); return; } const item: TestExam = { id: crypto.randomUUID(), title: text.trim(), subject, date, type: 'Gurukulam', topics: topic.trim() || 'Full chapter review', status: 'Upcoming' }; setWorkspace({ ...workspace, tests: [...workspace.tests, item] }); setText(''); setTopic(''); setDate(''); setNotice('Assessment scheduled.'); };
+  const addTest = () => { if (!text.trim() || !subject || !date) { setNotice('Enter a test name, subject and date.'); return; } const item: TestExam = { id: crypto.randomUUID(), title: text.trim(), subject, date, type: testType, topics: topic.trim() || 'Full chapter review', status: 'Upcoming' }; setWorkspace({ ...workspace, tests: [...workspace.tests, item] }); setText(''); setTopic(''); setDate(''); setTestType('Gurukulam'); setNotice('Assessment scheduled.'); };
   const addTeaching = () => { if (!subject || !selectedChapter) { setNotice('Select a subject and chapter first.'); return; } if (scope === 'pages' && !pageNumbers.length) { setNotice('Select at least one page, or choose Full chapter.'); return; } const orderedPages = [...pageNumbers].sort((a, b) => a - b); const target = scope === 'full_chapter' ? `Full chapter · ${selectedChapter.title}` : `Pages ${orderedPages.join(', ')} · ${selectedChapter.title}`; const item: TeachingPlanItem = { id: crypto.randomUUID(), subject, topic: target, duration: 25, objective: scope === 'full_chapter' ? `Learn and practise the full ${selectedChapter.title} chapter.` : `Learn and practise the selected pages from ${selectedChapter.title}.`, completed: false, scope, chapterId: selectedChapter.id, pageNumbers: scope === 'pages' ? orderedPages : undefined }; setWorkspace({ ...workspace, today: [...workspace.today, item] }); setNotice(`Added ${target} to Today's Teaching.`); };
   const addHomework = () => { if (!subject || !text.trim() || !date) { setNotice('Enter a homework title, subject and due date.'); return; } const item: HomeworkItem = { id: crypto.randomUUID(), subject, title: text.trim(), instructions: topic.trim() || 'Complete the assigned practice and review your answers.', dueDate: date, status: 'Pending' }; setWorkspace({ ...workspace, homework: [...workspace.homework, item] }); setText(''); setTopic(''); setDate(''); setNotice('Homework assigned.'); };
   const selectChild = <select className="timetable-child" value={child.id} onChange={e => setActive(e.target.value)}><option value="" disabled>Select child</option>{children.map(c => <option key={c.id} value={c.id}>{c.name || 'Unnamed child'}</option>)}</select>;
@@ -126,9 +179,9 @@ export function ParentLearningTools({ mode, children, active, setActive, workspa
 
     {mode === 'teachers' && <><div className="panel"><h2>Create / assign a teacher</h2><p>Teachers are never pre-created. Create a teacher and explicitly assign one or more existing subjects.</p><div className="subject-add-row"><input value={text} onChange={e => setText(e.target.value)} placeholder="Teacher name"/><select value={subject} onChange={e => setSubject(e.target.value)}><option value="">Select subject</option>{workspace.subjects.map(s => <option key={s}>{s}</option>)}</select><button className="primary" onClick={saveTeacher}>Save Teacher</button></div></div><div className="child-list">{workspace.teachers.map(t => <article className="child-row" key={t.id}><div><h3>👨‍🏫 {t.name}</h3><p>{t.role} · {t.subjects.join(', ') || 'No subjects assigned'}</p><span className="child-school">{t.style}</span></div><div className="row-actions"><button className="secondary" onClick={() => modifyTeacher(t)}>✎ Modify</button><button className="danger" onClick={() => deleteTeacher(t)}>Delete</button><button className={t.enabled ? 'secondary' : 'primary'} onClick={() => setWorkspace({ ...workspace, teachers: workspace.teachers.map(x => x.id === t.id ? { ...x, enabled: !x.enabled } : x) })}>{t.enabled ? 'Enabled' : 'Enable'}</button></div></article>)}{!workspace.teachers.length && <div className="coming-section panel"><h2>No teachers created</h2><p>Create a teacher here and explicitly assign the subjects they teach.</p></div>}</div></>}
 
-    {mode === 'subjects' && <div className="subject-list">{workspace.subjects.map(value => <article className="panel" key={value} style={{ marginBottom: 14 }}><div className="section-heading"><div><h2>📘 {value}</h2><p>{workspace.chapters.filter(chapter => chapter.subject === value).length} chapter(s) · Subjects are maintained in Time Table / Subjects.</p></div></div><div className="subject-add-row"><label className="upload-button">{busy ? 'Reading…' : '＋ Upload Chapter'}<input type="file" accept=".pdf,.png,.jpg,.jpeg" disabled={busy} onChange={uploadChapter}/></label></div>{workspace.chapters.filter(chapter => chapter.subject === value).map(chapter => <details key={chapter.id} className="subject-row" open={chapter.id === chapterId}><summary><strong>📖 {chapter.title}</strong><span>{chapter.pages.length} pages · {chapter.fileName}</span></summary><div style={{ display: 'grid', gap: 8, marginTop: 12 }}>{chapter.pages.map(page => <div key={page.number} className="panel" style={{ padding: 12, background: 'var(--panel-soft, #f6f6f6)' }}><strong>Page {page.number}</strong><p style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{page.text || 'No readable text detected on this page.'}</p></div>)}<button className="danger" onClick={() => deleteChapter(chapter)}>Delete Chapter</button></div></details>)}{!workspace.chapters.some(chapter => chapter.subject === value) && <p>No chapters uploaded yet. Upload the textbook chapter PDF/image for this subject.</p>}</article>)}{!workspace.subjects.length && <div className="coming-section panel"><h2>No subjects yet</h2><p>Add subjects under Time Table / Subjects. If no timetable exists, subjects can be created there manually.</p></div>}</div>}
+    {mode === 'subjects' && <div className="subject-list">{workspace.subjects.map(value => <article className="panel" key={value} style={{ marginBottom: 14 }}><div className="section-heading"><div><h2>📘 {value}</h2><p>{workspace.chapters.filter(chapter => chapter.subject === value).length} chapter(s) · Subjects are maintained in Time Table / Subjects.</p></div></div><div className="subject-add-row"><label className="upload-button">{busy ? 'Reading…' : '＋ Upload Chapter'}<input type="file" accept=".pdf,.png,.jpg,.jpeg" disabled={busy} onChange={uploadChapter}/></label><label className="upload-button cover-upload">{busy ? 'Finding book…' : '✨ Find book from cover'}<input type="file" accept=".png,.jpg,.jpeg" disabled={busy} onChange={uploadBookCover}/></label></div>{value === subject && coverProposal && <div className="book-proposal panel"><div className="section-heading"><div><small>AI BOOK MATCH</small><h2>{coverProposal.displayTitle}</h2><p>Detected for {subject} · {Math.round(coverProposal.confidence * 100)}% confidence. Verify every chapter before accepting.</p></div><button className="secondary" onClick={() => setCoverProposal(null)}>Discard</button></div><div className="proposal-chapters">{coverProposal.chapters.map((chapter, index) => <div className="proposal-chapter" key={`${index}-${chapter.title}`}><input value={chapter.title} onChange={event => updateCoverChapter(index, 'title', event.target.value)} aria-label={`Chapter ${index + 1} title`}/><textarea value={chapter.summary} onChange={event => updateCoverChapter(index, 'summary', event.target.value)} aria-label={`Chapter ${index + 1} details`}/><button className="danger" onClick={() => setCoverProposal({ ...coverProposal, chapters: coverProposal.chapters.filter((_, chapterIndex) => chapterIndex !== index) })}>Remove</button></div>)}</div><div className="actions"><button className="secondary" onClick={() => setCoverProposal({ ...coverProposal, chapters: [...coverProposal.chapters, { title: `Chapter ${coverProposal.chapters.length + 1}`, summary: '' }] })}>＋ Add chapter</button><button className="primary" onClick={acceptCoverProposal}>✓ Accept book & chapters</button></div></div>}{workspace.chapters.filter(chapter => chapter.subject === value).map(chapter => <details key={chapter.id} className="subject-row" open={chapter.id === chapterId}><summary><strong>📖 {chapter.title}</strong><span>{chapter.pages.length} pages · {chapter.fileName}</span></summary><div style={{ display: 'grid', gap: 8, marginTop: 12 }}>{chapter.pages.map(page => <div key={page.number} className="panel" style={{ padding: 12, background: 'var(--panel-soft, #f6f6f6)' }}><strong>Page {page.number}</strong><p style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{page.text || 'No readable text detected on this page.'}</p></div>)}<button className="danger" onClick={() => deleteChapter(chapter)}>Delete Chapter</button></div></details>)}{!workspace.chapters.some(chapter => chapter.subject === value) && <p>No chapters uploaded yet. Upload the textbook chapter PDF/image for this subject.</p>}</article>)}{!workspace.subjects.length && <div className="coming-section panel"><h2>No subjects yet</h2><p>Add subjects under Time Table / Subjects. If no timetable exists, subjects can be created there manually.</p></div>}</div>}
 
-    {mode === 'tests' && <><div className="panel"><h2>Create school / Gurukulam assessment</h2><div className="form-grid"><label>Test name<input value={text} onChange={e => setText(e.target.value)} placeholder="e.g. Maths Chapter Test"/></label><label>Subject<select value={subject} onChange={e => setSubject(e.target.value)}><option value="">Select subject</option>{workspace.subjects.map(s => <option key={s}>{s}</option>)}</select></label><label>Date<input type="date" value={date} onChange={e => setDate(e.target.value)}/></label><label>Topics<input value={topic} onChange={e => setTopic(e.target.value)} placeholder="Chapters / concepts"/></label></div><button className="primary" onClick={addTest}>＋ Schedule Test</button></div><div className="child-list">{workspace.tests.map(t => <article className="child-row" key={t.id}><div><h3>📝 {t.title}</h3><p>{t.type} · {t.subject} · {t.date}</p><span className="child-school">{t.topics}</span></div><button className="danger" onClick={() => setWorkspace({ ...workspace, tests: workspace.tests.filter(x => x.id !== t.id) })}>Delete</button></article>)}</div></>}
+    {mode === 'tests' && <><div className="panel"><h2>Create school / Gurukulam assessment</h2><div className="form-grid"><label>Test name<input value={text} onChange={e => setText(e.target.value)} placeholder="e.g. Maths Chapter Test"/></label><label>Subject<select value={subject} onChange={e => setSubject(e.target.value)}><option value="">Select subject</option>{workspace.subjects.map(s => <option key={s}>{s}</option>)}</select></label><label>Assessment type<select value={testType} onChange={e => setTestType(e.target.value as TestExam['type'])}><option value="Gurukulam">Gurukulam</option><option value="School">School</option></select></label><label>Date<input type="date" value={date} onChange={e => setDate(e.target.value)}/></label><label>Topics<input value={topic} onChange={e => setTopic(e.target.value)} placeholder="Chapters / concepts"/></label></div><button className="primary" onClick={addTest}>＋ Schedule Test</button></div><div className="child-list">{workspace.tests.map(t => <article className="child-row" key={t.id}><div><h3>📝 {t.title}</h3><p>{t.type} · {t.subject} · {t.date}</p><span className="child-school">{t.topics}</span></div><button className="danger" onClick={() => setWorkspace({ ...workspace, tests: workspace.tests.filter(x => x.id !== t.id) })}>Delete</button></article>)}</div></>}
 
     {mode === 'teaching' && <><div className="panel"><h2>Plan today's teaching</h2><div className="form-grid"><label>Subject<select value={subject} onChange={e => { setSubject(e.target.value); setChapterId(''); setPageNumbers([]); }}><option value="">Select subject</option>{workspace.subjects.map(s => <option key={s}>{s}</option>)}</select></label><label>Chapter<select value={chapterId} onChange={e => { setChapterId(e.target.value); setPageNumbers([]); }}><option value="">Select chapter</option>{subjectChapters.map(chapter => <option key={chapter.id} value={chapter.id}>{chapter.title}</option>)}</select></label><label>Teaching scope<select value={scope} onChange={e => { setScope(e.target.value as TeachingScope); setPageNumbers([]); }}><option value="full_chapter">Full chapter</option><option value="pages">Specific pages</option></select></label></div>{selectedChapter && scope === 'pages' && <div className="panel" style={{ marginTop: 14 }}><h3>Select pages from {selectedChapter.title}</h3><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 8 }}>{selectedChapter.pages.map(page => <label key={page.number} className="subject-row" style={{ cursor: 'pointer' }}><input type="checkbox" checked={pageNumbers.includes(page.number)} onChange={event => setPageNumbers(current => event.target.checked ? [...current, page.number] : current.filter(number => number !== page.number))}/><strong>Page {page.number}</strong></label>)}</div></div>}{!subjectChapters.length && subject && <p className="tt-notice">No chapters uploaded for this subject yet. Upload a chapter under Subjects before creating today's teaching.</p>}<button className="primary" disabled={busy || !selectedChapter || (scope === 'pages' && !pageNumbers.length)} onClick={addTeaching}>＋ Add to Today's Teaching</button></div><div className="child-list">{workspace.today.map(t => <article className="child-row" key={t.id}><div><h3>📖 {t.subject}: {t.topic}</h3><p>{t.duration} minutes · {t.objective}</p></div><button className={t.completed ? 'secondary' : 'primary'} onClick={() => setWorkspace({ ...workspace, today: workspace.today.map(x => x.id === t.id ? { ...x, completed: !x.completed } : x) })}>{t.completed ? 'Completed' : 'Mark Complete'}</button></article>)}</div></>}
 

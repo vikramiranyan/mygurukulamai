@@ -1,0 +1,11 @@
+name = "tutor"
+main = "src/index.ts"
+compatibility_date = "2026-09-09"
+
+[vars]
+AI_MODELS = "@cf/meta/llama-3.2-3b-instruct,@cf/qwen/qwen1.5-1.8b-chat"
+ALLOWED_ORIGIN = "https://vikram.gurukulam-ai.workers.dev"
+GOOGLE_CLIENT_ID = "96891639304-4hi2fjfnleq59oktf3gflu9c4kei1o31.apps.googleusercontent.com"
+
+[ai]
+binding = "AI"

@@ -6,24 +6,29 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
+    "preview": "npm run build && wrangler dev",
     "test": "vitest run",
     "test:stage8": "vitest run src/stage8 --reporter=verbose",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
+    "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
-    "typescript": "latest",
+    "pdfjs-dist": "4.10.38",
     "react": "latest",
     "react-dom": "latest",
-    "vitest": "latest",
-    "pdfjs-dist": "4.10.38",
-    "tesseract.js": "latest"
+    "tesseract.js": "latest",
+    "three": "^0.186.0",
+    "typescript": "latest",
+    "vite": "latest",
+    "vitest": "latest"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.54.7",
     "@types/react": "latest",
-    "@types/react-dom": "latest"
+    "@types/react-dom": "latest",
+    "wrangler": "^4.131.0"
   }
 }

@@ -17,7 +17,33 @@ async function extractPdfText(file: File): Promise<string> {
   for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
     const page = await pdf.getPage(pageNo);
     const content = await page.getTextContent();
-    const pageText = content.items.map((item: any) => String(item.str ?? '')).join('').replace(/[ \t]+/g, ' ').trim();
+    const fragments: Array<{ y: number; x: number; text: string }> = [];
+    for (const item of content.items as any[]) {
+      const text = String(item.str ?? '').trim();
+      if (!text) continue;
+      const transform = Array.isArray(item.transform) ? item.transform : [];
+      const x = Number(transform[4] || 0);
+      const y = Number(transform[5] || 0);
+      const fragment = fragments.find(candidate => Math.abs(candidate.x - x) <= 4 && Math.abs(candidate.y - y) <= 18);
+      if (fragment) {
+        const earlier = fragment.y >= y ? fragment : { ...fragment, y };
+        fragment.text = fragment.y >= y ? `${fragment.text} ${text}` : `${text} ${fragment.text}`;
+        fragment.y = earlier.y;
+      } else {
+        fragments.push({ y, x, text });
+      }
+    }
+    const lines: Array<{ y: number; x: number; text: string }> = [];
+    for (const fragment of fragments) {
+      const line = lines.find(candidate => Math.abs(candidate.y - fragment.y) <= 3);
+      if (line) line.text += ` ${fragment.text}`;
+      else lines.push({ ...fragment });
+    }
+    const pageText = lines
+      .sort((a, b) => b.y - a.y || a.x - b.x)
+      .map(line => line.text.replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+      .join('\n');
     if (pageText) pages.push(pageText);
   }
   const text = pages.join('\n');
@@ -42,7 +68,7 @@ function diffSubjects(previous: string[], next: string[]) {
   };
 }
 
-export function ParentTimetableSubjects({ children, active, setActive, driveSync }: { children: Child[]; active: string; setActive: (id: string) => void; driveSync: DriveSyncController }) {
+export function ParentTimetableSubjects({ children, active, setActive, driveSync, onOpenSubjects }: { children: Child[]; active: string; setActive: (id: string) => void; driveSync: DriveSyncController; onOpenSubjects: () => void }) {
   const child = children.find(c => c.id === active) || children[0];
   const [record, setRecord] = useState<ChildTimetableRecord | null>(null);
   const [draft, setDraft] = useState<TimetableDraft | null>(null);
@@ -158,7 +184,7 @@ export function ParentTimetableSubjects({ children, active, setActive, driveSync
     if (currentSubjects.some(s => s !== subjectEdit && s.toLocaleLowerCase() === nextName.toLocaleLowerCase())) { setNotice('Another subject with that name already exists for this child.'); return; }
     const periods = currentPeriods.map(period => period.subject.toLocaleLowerCase() === subjectEdit.toLocaleLowerCase() ? { ...period, subject: nextName } : period);
     const subjects = uniqueSubjects(currentSubjects.map(s => s === subjectEdit ? nextName : s)); setBusy(true);
-    try { if (draft) setDraft({ ...draft, periods, subjects }); else await persistManualSubjects(subjects, { action: 'modify_subject', previousSubject: subjectEdit, newSubject: nextName }); setSubjectEdit(null); setSubjectValue(''); setNotice(`Subject renamed to “${nextName}” for ${child.name}.`); }
+    try { if (draft) setDraft({ ...draft, periods, subjects }); else { await driveSync.renameSubject(child.id, subjectEdit, nextName); await persistManualSubjects(subjects, { action: 'modify_subject', previousSubject: subjectEdit, newSubject: nextName }); } setSubjectEdit(null); setSubjectValue(''); setNotice(`Subject renamed to “${nextName}” for ${child.name}.`); }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Subject could not be modified.'); }
     finally { setBusy(false); }
   };
@@ -167,7 +193,7 @@ export function ParentTimetableSubjects({ children, active, setActive, driveSync
     if (currentPeriods.some(period => period.subject.toLocaleLowerCase() === subject.toLocaleLowerCase())) { setNotice(`“${subject}” is still used by a timetable period. Change/remove those periods before deleting the subject.`); return; }
     if (!confirm(`Delete ${subject} for ${child.name}?`)) return;
     const subjects = currentSubjects.filter(s => s.toLocaleLowerCase() !== subject.toLocaleLowerCase()); setBusy(true);
-    try { if (draft) setDraft({ ...draft, subjects }); else await persistManualSubjects(subjects, { action: 'delete_subject', subject }); setNotice(`Subject “${subject}” deleted for ${child.name}.`); }
+    try { if (draft) setDraft({ ...draft, subjects }); else { await driveSync.deleteSubject(child.id, subject); await persistManualSubjects(subjects, { action: 'delete_subject', subject }); } setNotice(`Subject “${subject}” deleted for ${child.name}.`); }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Subject could not be deleted.'); }
     finally { setBusy(false); }
   };
@@ -179,7 +205,7 @@ export function ParentTimetableSubjects({ children, active, setActive, driveSync
     {(draft || record) && <><div className="tt-status"><span>Child: <b>{child.name}</b></span><span>File: <b>{draft?.fileName || record?.fileName}</b></span><span>Status: <b>{draft ? 'Review required' : record?.status}</b></span><span>Subjects: <b>{currentSubjects.length}</b></span></div>
       {currentPeriods.length > 0 && <div className="tt-review panel"><div className="section-heading"><div><small>AI REVIEW</small><h2>Review / Correct TimeTable</h2></div><span>{currentPeriods.length} detected periods</span></div><div className="tt-table-wrap"><table><thead><tr><th>Day</th><th>Start</th><th>End</th><th>Subject</th><th></th></tr></thead><tbody>{currentPeriods.map((period, index) => <tr key={`${period.day}-${period.start}-${index}`}><td><select value={period.day} onChange={e => updatePeriod(index, 'day', e.target.value)} disabled={busy}>{DAYS.map(day => <option key={day}>{day}</option>)}</select></td><td><input type="time" value={period.start} onChange={e => updatePeriod(index, 'start', e.target.value)} disabled={busy}/></td><td><input type="time" value={period.end} onChange={e => updatePeriod(index, 'end', e.target.value)} disabled={busy}/></td><td><input value={period.subject} onChange={e => updatePeriod(index, 'subject', e.target.value)} disabled={busy}/></td><td><button className="danger-link" disabled={busy} onClick={() => setDraft(makeDraft(currentPeriods.filter((_, i) => i !== index)))}>Remove</button></td></tr>)}</tbody></table></div><div className="actions"><button className="secondary" disabled={busy} onClick={() => setDraft(makeDraft([...currentPeriods, { day: 'Monday', start: '10:00', end: '10:40', subject: '', type: 'class' }]))}>＋ Add Period</button>{draft && <button className="primary" disabled={busy} onClick={() => void saveDraft()}>✓ Confirm & Save</button>}</div></div>}
     </>}
-    <div className="panel subject-management"><div className="section-heading"><div><small>SUBJECT MANAGEMENT</small><h2>📚 Subjects for {child.name}</h2><p>{record ? 'Timetable subjects can be modified here. You can also add subjects that are not present in the timetable.' : 'No timetable is uploaded. You can create the child’s subjects manually now and add a timetable later.'}</p></div></div><div className="subject-add-row"><input value={newSubject} onChange={e => setNewSubject(e.target.value)} placeholder="Add subject manually" disabled={busy}/><button className="primary" disabled={busy} onClick={() => void addSubject()}>＋ Add Subject</button></div><div className="subject-list">{currentSubjects.map(subject => <div className="subject-row" key={subject}>{subjectEdit === subject ? <><input value={subjectValue} onChange={e => setSubjectValue(e.target.value)} disabled={busy}/><button className="primary" disabled={busy} onClick={() => void modifySubject()}>Save</button><button className="secondary" disabled={busy} onClick={() => setSubjectEdit(null)}>Cancel</button></> : <><strong>{subject}</strong><span className="subject-actions"><button disabled={busy} onClick={() => { setSubjectEdit(subject); setSubjectValue(subject); }}>✎ Modify</button><button className="danger" disabled={busy} onClick={() => void deleteSubject(subject)}>Delete</button></span></>}</div>)}</div>{!currentSubjects.length && <p>No subjects yet. Add the first subject manually or upload a timetable to extract subjects.</p>}</div>
+    <div className="panel subject-management"><div className="section-heading"><div><small>SUBJECT MANAGEMENT</small><h2>📚 Subjects for {child.name}</h2><p>{record ? 'Timetable subjects can be modified here. You can also add subjects that are not present in the timetable.' : 'No timetable is uploaded. You can create the child’s subjects manually now and add a timetable later.'}</p></div><button className="secondary" onClick={onOpenSubjects}>Open book & chapter tools</button></div><div className="subject-add-row"><input value={newSubject} onChange={e => setNewSubject(e.target.value)} placeholder="Add subject manually" disabled={busy}/><button className="primary" disabled={busy} onClick={() => void addSubject()}>＋ Add Subject</button></div><div className="subject-list">{currentSubjects.map(subject => <div className="subject-row" key={subject}>{subjectEdit === subject ? <><input value={subjectValue} onChange={e => setSubjectValue(e.target.value)} disabled={busy}/><button className="primary" disabled={busy} onClick={() => void modifySubject()}>Save</button><button className="secondary" disabled={busy} onClick={() => setSubjectEdit(null)}>Cancel</button></> : <><strong>{subject}</strong><span className="subject-actions"><button className="secondary" disabled={busy} onClick={onOpenSubjects}>📖 Find book / chapters</button><button disabled={busy} onClick={() => { setSubjectEdit(subject); setSubjectValue(subject); }}>✎ Modify</button><button className="danger" disabled={busy} onClick={() => void deleteSubject(subject)}>Delete</button></span></>}</div>)}</div>{!currentSubjects.length && <p>No subjects yet. Add the first subject manually or upload a timetable to extract subjects.</p>}</div>
     {!record && !draft && <div className="coming-section panel"><div className="coming-icon">📚</div><h2>No timetable uploaded for {child.name} yet.</h2><p>You can still add, modify and delete subjects manually above. Uploading a timetable later will merge its extracted subjects into this child’s existing subject list.</p></div>}
   </section>;
 }

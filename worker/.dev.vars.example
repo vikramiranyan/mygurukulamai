@@ -1,0 +1,2 @@
+AI_MODELS="@cf/meta/llama-3.2-3b-instruct,@cf/qwen/qwen1.5-1.8b-chat"
+ALLOWED_ORIGIN="http://localhost:5173"
