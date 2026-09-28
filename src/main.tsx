@@ -12,6 +12,7 @@ import type { DriveChildRecord } from './storage/driveChildStore';
 import { ParentTimetableSubjects } from './parentTimetableSubjects';
 import { ParentLearningTools } from './parentLearningTools';
 import { LearningHome } from './child/LearningHome';
+import { hostedTutorUrl } from './aiTutor/hostedTutor';
 import { defaultWorkspace, type ChildWorkspace, type LearningWorkspace } from './learningWorkspace';
 import type { Child } from './types/parent';
 import { loadPublicEnhancements } from './publicEnhancements';
@@ -44,7 +45,7 @@ function Login({ setSession }: { setSession: (s: AuthSession) => void }) {
       if (cancelled || !window.google || !googleButtonRef.current) return;
       try {
         setGoogleError('');
-        (window.google.accounts.id.initialize as any)({ client_id: GOOGLE_CLIENT_ID, callback: (response: { credential?: string }) => { if (!response?.credential) { setGoogleError('Google did not return a sign-in credential. Please try again.'); return; } const apiBaseUrl = (import.meta.env.VITE_AI_API_URL?.trim() || '').replace(/\/$/, ''); if (!apiBaseUrl) { setGoogleError('Server authentication is not configured. Set VITE_AI_API_URL and try again.'); return; } void verifyCredentialOnServer(response.credential, apiBaseUrl).then(setSession).catch(error => setGoogleError(error instanceof Error ? error.message : 'Google sign-in could not be verified by the server.')); }, cancel_on_tap_outside: false });
+        (window.google.accounts.id.initialize as any)({ client_id: GOOGLE_CLIENT_ID, callback: (response: { credential?: string }) => { if (!response?.credential) { setGoogleError('Google did not return a sign-in credential. Please try again.'); return; } void verifyCredentialOnServer(response.credential, hostedTutorUrl()).then(setSession).catch(error => setGoogleError(error instanceof Error ? error.message : 'Google sign-in could not be verified by the server.')); }, cancel_on_tap_outside: false });
         setGoogleReady(true);
       } catch (error) { console.error('Google Identity Services initialization failed:', error); setGoogleError('Google Sign-In could not be loaded. Please refresh and try again.'); }
     };

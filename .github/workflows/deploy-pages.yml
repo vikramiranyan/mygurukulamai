@@ -33,6 +33,8 @@ jobs:
       - name: Unit and integration tests
         run: npm test -- --reporter=verbose
       - name: Production build
+        env:
+          VITE_AI_API_URL: https://tutor.gurukulam-ai.workers.dev
         run: npm run build
       - name: Setup Pages
         uses: actions/configure-pages@v5

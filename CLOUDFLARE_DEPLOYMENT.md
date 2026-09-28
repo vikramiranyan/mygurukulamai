@@ -11,10 +11,10 @@ npx wrangler pages project create gurukulam-ai
 npx wrangler pages deploy dist --project-name gurukulam-ai
 ```
 
-Set `VITE_AI_API_URL` in the frontend environment to the deployed Worker URL, for example:
+The deployed GitHub Pages workflow sets `VITE_AI_API_URL` to the tutor Worker URL during its production build. Other builds may set it explicitly:
 
 ```text
-https://gurukulam-ai-tutor.<account>.workers.dev
+https://tutor.gurukulam-ai.workers.dev
 ```
 
 Rebuild after changing the frontend environment variable.
@@ -36,8 +36,8 @@ npx wrangler dev
 
 The default provider adapter targets a Gemini-compatible `generateContent` endpoint with Google Search grounding enabled. This lets the tutor search the web for factual, current, or unfamiliar questions before answering. It uses `AI_MODEL` as the model name. Provider quotas and free-tier terms can change; keep the model configurable rather than embedding it in the frontend.
 
-The frontend intentionally does not fall back to canned tutor replies when `VITE_AI_API_URL` is missing. Configure the Worker URL before testing general questions, otherwise the app reports that hosted AI is not configured.
+The frontend defaults to the production tutor Worker URL when `VITE_AI_API_URL` is omitted. It intentionally does not fall back to canned tutor replies.
 
 ## Google OAuth
 
-Add the final Cloudflare Pages origin to the Google OAuth web client as an authorized JavaScript origin. Drive tokens remain in browser memory and are not sent to the AI Worker.
+Add every frontend origin to both the Google OAuth web client as an authorized JavaScript origin and the comma-separated `ALLOWED_ORIGIN` list in `worker/wrangler.toml`. The Worker currently permits `https://vikram.gurukulam-ai.workers.dev` and `https://vikramiranyan.github.io`. Drive tokens remain in browser memory and are not sent to the AI Worker.

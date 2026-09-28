@@ -23,7 +23,10 @@ const maxQuestionLength = 500;
 
 function corsHeaders(request: Request, env: Env): HeadersInit {
   const origin = request.headers.get('Origin') || '';
-  const allowedOrigin = env.ALLOWED_ORIGIN?.trim() || origin || '*';
+  const configuredOrigins = env.ALLOWED_ORIGIN?.split(',').map(value => value.trim()).filter(Boolean) || [];
+  const allowedOrigin = configuredOrigins.length === 0 || configuredOrigins.includes('*')
+    ? origin || '*'
+    : configuredOrigins.includes(origin) ? origin : configuredOrigins[0];
   return {
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -34,8 +37,8 @@ function corsHeaders(request: Request, env: Env): HeadersInit {
 }
 
 function originAllowed(request: Request, env: Env): boolean {
-  const configuredOrigin = env.ALLOWED_ORIGIN?.trim();
-  return !configuredOrigin || configuredOrigin === '*' || request.headers.get('Origin') === configuredOrigin;
+  const configuredOrigins = env.ALLOWED_ORIGIN?.split(',').map(value => value.trim()).filter(Boolean) || [];
+  return configuredOrigins.length === 0 || configuredOrigins.includes('*') || configuredOrigins.includes(request.headers.get('Origin') || '');
 }
 
 function json(request: Request, env: Env, body: unknown, status = 200): Response {

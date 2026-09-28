@@ -27,8 +27,8 @@ export function speechLanguage(language: TutorLanguage): string {
   return languageCodes[language];
 }
 
-function hostedTutorUrl(): string {
-  return (import.meta.env.VITE_AI_API_URL?.trim() || '').replace(/\/$/, '');
+export function hostedTutorUrl(): string {
+  return (import.meta.env.VITE_AI_API_URL?.trim() || 'https://tutor.gurukulam-ai.workers.dev').replace(/\/$/, '');
 }
 
 export async function askHostedTutor(request: HostedTutorRequest, signal?: AbortSignal): Promise<HostedTutorResponse | null> {
