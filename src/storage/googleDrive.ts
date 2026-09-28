@@ -6,7 +6,7 @@ const CHILD_FOLDER = 'children';
 export class DriveApiError extends Error {
   constructor(public readonly status: number, message: string) { super(message); this.name = 'DriveApiError'; }
 }
-export type DriveFile = { id: string; name: string; mimeType: string; parents?: string[] };
+export type DriveFile = { id: string; name: string; mimeType: string; parents?: string[]; webViewLink?: string };
 type DriveListResponse = { files: DriveFile[]; nextPageToken?: string };
 const folderCache = new Map<string, { rootId: string; childrenId: string }>();
 
@@ -37,7 +37,10 @@ async function folderHasJsonFiles(token: string, folderId: string): Promise<bool
   return Boolean((data.files || []).some(file => file.name.endsWith('.json')));
 }
 async function createFolder(token: string, name: string, parentId?: string): Promise<DriveFile> {
-  return driveRequest<DriveFile>(token, `${DRIVE_API}/files`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', ...(parentId ? { parents: [parentId] } : {}) }) });
+  return driveRequest<DriveFile>(token, `${DRIVE_API}/files?fields=id,name,mimeType,webViewLink`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', ...(parentId ? { parents: [parentId] } : {}) }) });
+}
+export async function ensureFolder(token: string, name: string, parentId: string): Promise<DriveFile> {
+  return (await findFolders(token, name, parentId))[0] || createFolder(token, name, parentId);
 }
 export async function ensureGurukulamFolders(token: string): Promise<{ rootId: string; childrenId: string }> {
   const cached = folderCache.get(token); if (cached) return cached;
@@ -68,6 +71,21 @@ export async function findNamedChildFile(token: string, childrenFolderId: string
   const data = await driveRequest<DriveListResponse>(token, `${DRIVE_API}/files?q=${q}&corpora=user&fields=files(id,name,mimeType,parents)&spaces=drive&pageSize=10`);
   return data.files[0] || null;
 }
+export async function getFileMetadata(token: string, fileId: string): Promise<DriveFile> {
+  return driveRequest<DriveFile>(token, `${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,parents,webViewLink`);
+}
+export async function listFolderFiles(token: string, folderId: string): Promise<DriveFile[]> {
+  const q = encodeURIComponent(`'${escapeDriveQueryValue(folderId)}' in parents and trashed = false`);
+  const files: DriveFile[] = [];
+  let pageToken = '';
+  do {
+    const tokenParam = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
+    const data = await driveRequest<DriveListResponse>(token, `${DRIVE_API}/files?q=${q}&corpora=user&fields=nextPageToken,files(id,name,mimeType,parents)&spaces=drive&pageSize=100${tokenParam}`);
+    files.push(...data.files);
+    pageToken = data.nextPageToken || '';
+  } while (pageToken);
+  return files;
+}
 export async function listChildFiles(token: string, childrenFolderId: string): Promise<DriveFile[]> {
   const q = encodeURIComponent(`'${escapeDriveQueryValue(childrenFolderId)}' in parents and trashed = false`);
   const files: DriveFile[] = []; let pageToken = '';
@@ -95,10 +113,53 @@ export async function writeJson<T>(token: string, folderId: string, fileName: st
   const boundary = `gurukulam-${crypto.randomUUID()}`; const payload = new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` + `--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n` + `--${boundary}--\r\n`], { type: `multipart/related; boundary=${boundary}` });
   return driveRequest<DriveFile>(token, url, { method: existingFileId ? 'PATCH' : 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body: payload });
 }
+export async function uploadBinary(token: string, folderId: string, fileName: string, mimeType: string, data: Blob): Promise<DriveFile> {
+  const metadata = JSON.stringify({ name: fileName, mimeType, parents: [folderId] });
+  const boundary = `gurukulam-${crypto.randomUUID()}`;
+  const payload = new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
+    `--${boundary}\r\nContent-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`,
+    data,
+    `\r\n--${boundary}--\r\n`,
+  ], { type: `multipart/related; boundary=${boundary}` });
+  return driveRequest<DriveFile>(token, `${DRIVE_UPLOAD_API}?uploadType=multipart&fields=id,name,mimeType,webViewLink`, {
+    method: 'POST',
+    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body: payload,
+  });
+}
+export async function downloadBinary(token: string, fileId: string): Promise<Blob> {
+  const response = await fetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    let detail = '';
+    try { detail = ((await response.json()) as { error?: { message?: string } }).error?.message || ''; }
+    catch { try { detail = (await response.text()).slice(0, 500); } catch { /* Ignore secondary parsing failures. */ } }
+    throw new DriveApiError(response.status, `Google Drive download failed (${response.status})${detail ? `: ${detail}` : ''}`);
+  }
+  return response.blob();
+}
 export async function deleteFile(token: string, fileId: string): Promise<void> {
   const response = await fetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
   if (!response.ok) {
     let detail = ''; try { const body = await response.json() as { error?: { message?: string; status?: string } }; detail = body.error?.message || body.error?.status || ''; } catch { try { detail = (await response.text()).slice(0, 500); } catch { /* Ignore secondary parsing failures. */ } }
     throw new DriveApiError(response.status, `Google Drive delete failed (${response.status})${detail ? `: ${detail}` : ''}`);
   }
+
+}
+
+export async function deleteChapterAssets(token: string, childId: string, chapterId: string, sourceFileId?: string, driveFolderId?: string): Promise<void> {
+    const { childrenId } = await ensureGurukulamFolders(token);
+    const chapterTextFile = await findNamedChildFile(token, childrenId, `${childId}-${chapterId}-chapter-pages.json`);
+    const sourceFile = sourceFileId ? await getFileMetadata(token, sourceFileId) : null;
+    const folderId = driveFolderId || sourceFile?.parents?.[0];
+    if (folderId) {
+      const files = await listFolderFiles(token, folderId);
+      for (const file of files) await deleteFile(token, file.id);
+      await deleteFile(token, folderId);
+    } else if (sourceFileId) {
+      await deleteFile(token, sourceFileId);
+    }
+    if (chapterTextFile) await deleteFile(token, chapterTextFile.id);
 }

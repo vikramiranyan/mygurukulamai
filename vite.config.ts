@@ -10,7 +10,7 @@ export default defineConfig({
     transformIndexHtml(html) {
       const withCsp = html.replace(
         'https://tessdata.projectnaptha.com; worker-src',
-        'https://tessdata.projectnaptha.com https://*.workers.dev https://*.pages.dev; worker-src',
+        'https://tessdata.projectnaptha.com https://api.ocr.space https://*.workers.dev https://*.pages.dev; worker-src',
       );
       const withExternalScripts = withCsp.replace(
         'https://accounts.google.com https://cdn.jsdelivr.net; style-src',

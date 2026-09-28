@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { askHostedTutor, speechLanguage, type TutorLanguage } from '../aiTutor/hostedTutor';
-import { getLessonContent, gradeAnswer, type LessonContent } from '../aiTutor/lessonContent';
+import { createLessonFromChapterText, getLessonContent, gradeAnswer, type LessonContent } from '../aiTutor/lessonContent';
 import { generateTeachingPlan } from '../aiTutor/teachingPlan';
 import { checkTutorInput, ageAppropriateInstruction } from '../aiTutor/tutorSafety';
 import { diagnoseMistake, remediationMessage, recommendNextStep, type LearningSignal } from '../core/adaptiveLearning';
@@ -17,15 +17,16 @@ const emptyWorkspace: ChildWorkspace = { teachers: [], subjects: [], chapters: [
 function teacherNameFor(subject: string, workspace: ChildWorkspace): string | null {
   return workspace.teachers.find(t => t.enabled && t.subjects.includes(subject))?.name || null;
 }
+function teacherFor(subject: string, workspace: ChildWorkspace) {
+  return workspace.teachers.find(t => t.enabled && t.subjects.includes(subject));
+}
 function isUploadedChapter(chapter: ChapterRecord): chapter is ChapterRecord { return Array.isArray(chapter.pages); }
 function uploadedPages(chapter: ChapterRecord): ChapterPage[] { return isUploadedChapter(chapter) ? chapter.pages : []; }
 function chapterLesson(chapter: ChapterRecord, targetPages?: number[]): LessonContent {
-  const base = getLessonContent(chapter.id, chapter.title);
   const pages = uploadedPages(chapter);
-  if (!pages.length) return base;
   const selected = targetPages?.length ? pages.filter(page => targetPages.includes(page.number)) : pages;
-  const excerpts = selected.map(page => page.text).filter(Boolean).slice(0, 4);
-  return { ...base, explanation: excerpts.length ? excerpts.join(' ') : base.explanation, examples: excerpts.length ? excerpts.slice(0, 3) : base.examples };
+  const text = selected.map(page => page.text).filter(Boolean).slice(0, 4).join(' ');
+  return text ? createLessonFromChapterText(chapter.title, text) : getLessonContent(chapter.id, chapter.title);
 }
 function childAge(dob: string): number | undefined {
   if (!dob) return undefined;
@@ -70,10 +71,12 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
   const currentTarget = activeToday[0];
   const targetPages = currentTarget?.scope === 'pages' ? currentTarget.pageNumbers : undefined;
   const lesson = useMemo(() => chapter ? chapterLesson(chapter, targetPages) : null, [chapter, targetPages]);
+  const hasReadableChapterContent = Boolean(chapter && chapter.reviewStatus === 'confirmed' && uploadedPages(chapter).some(page => page.text.trim()));
   const age = childAge(child.dob);
   const plan = useMemo(() => generateTeachingPlan({ subject, chapter: chapter?.title || 'Next lesson', concepts: [chapter?.title || 'Next lesson'], profile: { mastery: session?.masteryScore ? session.masteryScore / 100 : 0, age, recentMistakes: signals.filter(signal => !signal.correct).map(() => chapter?.title || subject), consecutiveIncorrect: signals.slice(-3).filter(signal => !signal.correct).length } }), [subject, chapter, session?.masteryScore, age, signals]);
   const adaptive = useMemo(() => recommendNextStep(signals, session?.masteryScore ? session.masteryScore / 100 : 0), [signals, session?.masteryScore]);
   const teacherName = teacherNameFor(subject, workspace);
+  const teacher = teacherFor(subject, workspace);
 
   useEffect(() => () => { voice.stopSTT(); voice.stopSpeaking(); tutorRequest.current?.abort(); }, [voice]);
   useEffect(() => { if (!workspace.subjects.includes(subject)) { setSubject(workspace.subjects[0] || ''); setChapterId(''); } }, [workspace.subjects, subject]);
@@ -82,6 +85,14 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
     let cancelled = false;
     const restore = async () => {
       if (!chapter) return;
+      if (!hasReadableChapterContent) {
+        setSession(null);
+        setAnswers([]);
+        setSignals([]);
+        setFeedback('');
+        setCheckIndex(0);
+        return;
+      }
       const driveSync = getActiveDriveSync();
       let latestWorkspace = workspace;
       if (driveSync?.authorized) {
@@ -99,7 +110,7 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
     };
     void restore();
     return () => { cancelled = true; };
-  }, [child.id, chapter?.id, subject]);
+  }, [child.id, chapter?.id, subject, hasReadableChapterContent]);
 
   const persistProgress = async (nextSession: LearningSession, nextSignals: LearningSignal[]) => {
     const driveSync = getActiveDriveSync();
@@ -139,6 +150,7 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
   };
   const begin = () => {
     if (!chapter || !teacherName) { setFeedback('Your parent must assign a teacher to this subject before the lesson can start.'); return; }
+    if (!hasReadableChapterContent) { setFeedback('This chapter has not been read yet. Ask your parent to upload a clearer PDF or page image.'); return; }
     const saved = progressFromWorkspace(workspace, subject, chapter.id);
     if (saved) { setSession(saved.session as LearningSession); setAnswers(saved.session.answers as AnswerRecord[]); setSignals(saved.signals as LearningSignal[]); setCheckIndex(Math.min(saved.session.answers.length, Math.max(0, (lesson?.checks.length || 1) - 1))); setFeedback(`Welcome back! Your saved mastery is ${saved.session.masteryScore}%.`); return; }
     const nextSession = startSession(child.id, subject, chapter.id);
@@ -148,7 +160,7 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
   const speakFeedback = async (text: string, responseLanguage: TutorLanguage = language) => {
     if (!text || !voice.supportsTTS()) return;
     setSpeaking(true);
-    try { await voice.speak(ageAppropriateInstruction(text, age), speechLanguage(responseLanguage), age && age < 9 ? 0.82 : 0.9); }
+    try { await voice.speak(ageAppropriateInstruction(text, age), speechLanguage(teacher?.voiceLanguage || responseLanguage), age && age < 9 ? 0.82 : 0.9, teacher?.voiceGender || 'female'); }
     catch { setVoiceStatus('I could not play the voice reply. You can still read it here.'); }
     finally { setSpeaking(false); }
   };
@@ -261,7 +273,7 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
         </div>
         <div className="hero-art-wrap">
           <img src="./assets/gurukulam-two-girls-3d.png" alt="Two children learning together" className="hero-art" />
-          <TeacherCompanion name={teacherName} subject={subject} speaking={speaking} listening={listening} onAsk={focusTeacher} />
+          <TeacherCompanion name={teacherName} subject={subject} gender={teacher?.voiceGender} speaking={speaking} listening={listening} onAsk={focusTeacher} />
         </div>
         <div className="hero-sparkles" aria-hidden="true">✦　✧　★</div>
       </section>
@@ -270,7 +282,7 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
         <div className="section-path">{completedToday}/{workspace.today.length || 1} steps complete</div>
       </section>
       <section className="adventure-board panel">
-        <div className="adventure-intro"><span className="adventure-icon">🗺️</span><div><strong>{currentTarget ? currentTarget.topic : chapter ? `Explore ${chapter.title}` : 'Choose your first adventure'}</strong><p>{currentTarget ? `${currentTarget.duration} minutes · ${currentTarget.completed ? 'Adventure complete' : currentTarget.objective}` : 'Pick a learning world below and meet your teacher.'}</p></div><button className="adventure-cta" onClick={focusLesson} disabled={!chapter || !teacherName}>{session ? 'Continue lesson' : 'Enter lesson'} <span>→</span></button></div>
+        <div className="adventure-intro"><span className="adventure-icon">🗺️</span><div><strong>{currentTarget ? currentTarget.topic : chapter ? `Explore ${chapter.title}` : 'Choose your first adventure'}</strong><p>{currentTarget ? `${currentTarget.duration} minutes · ${currentTarget.completed ? 'Adventure complete' : currentTarget.objective}` : 'Pick a learning world below and meet your teacher.'}</p></div><button className="adventure-cta" onClick={focusLesson} disabled={!chapter || !teacherName || !hasReadableChapterContent}>{session ? 'Continue lesson' : 'Enter lesson'} <span>→</span></button></div>
         <div className="adventure-steps" aria-label="Learning journey">
           {['Warm up', 'Meet teacher', 'Try it', 'Celebrate'].map((step, index) => <div key={step} className={`adventure-step ${index === (session ? 2 : 0) ? 'current' : index < (session ? 2 : 0) ? 'done' : ''}`}><span>{index < (session ? 2 : 0) ? '✓' : index + 1}</span><small>{step}</small></div>)}
         </div>
@@ -331,8 +343,14 @@ export function LearningHome({ child, onParents, signout, workspace = emptyWorks
         <div className="lesson-heading"><div><span>📘 YOUR LESSON</span><h2>{lesson.title}</h2></div>{session && <div className="mastery-badge">⭐ {session.masteryScore}% mastery</div>}</div>
         {currentTarget && <div className="tt-notice lesson-target"><strong>Today’s target:</strong> {currentTarget.topic}{currentTarget.scope === 'pages' && currentTarget.pageNumbers?.length ? ` · Pages ${currentTarget.pageNumbers.join(', ')}` : ''}</div>}
         {!teacherName && <div className="tt-notice lesson-target"><strong>Teacher setup required:</strong> Ask your parent to assign a teacher to {subject} before starting this lesson.</div>}
+        {!hasReadableChapterContent && <div className="tt-notice lesson-target lesson-blocked" role="alert"><strong>Teaching is paused:</strong> this chapter has not been read successfully. Ask your parent to re-upload a clear PDF or page image. The AI will start only after it can read the chapter.</div>}
         <div className="lesson-body"><div><p className="lesson-goal"><strong>🎯 Today’s goal:</strong> {lesson.objective}</p><p>{lesson.explanation}</p></div><div className="example-box"><span>💡 TRY THIS</span><ul>{lesson.examples.map((example, index) => <li key={`${index}-${example}`}>{example}</li>)}</ul></div></div>
-        {!session ? <button className="primary lesson-start" disabled={!teacherName} onClick={begin}>▶ Start Lesson</button> : <div className="lesson-session"><div className="session-summary"><strong>{plan.mode.toUpperCase()}</strong><span>{adaptive.reason}</span><small>Confidence {adaptive.confidence}%</small></div><h3>Understanding check</h3>{lesson.checks[checkIndex] ? <><p>{lesson.checks[checkIndex].prompt}</p><div className="answer-row"><input maxLength={300} value={studentAnswer} onChange={e => setStudentAnswer(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submitAnswer(); }} placeholder="Type your answer" aria-label="Your answer"/><button className="primary" disabled={!studentAnswer.trim()} onClick={submitAnswer}>Check Answer</button></div></> : <p>🎉 You completed this lesson’s checks. Final mastery: <strong>{session.masteryScore}%</strong>.</p>}{feedback && <div className="tt-notice feedback-box" role="status">{feedback}</div>}</div>}
+        <div className="lesson-visual" aria-label={`Related visual for ${subject}`}>
+          <div className="lesson-visual-art"><span>{subjectIcon(subject)}</span><img src="./assets/gurukulam-two-girls-3d.png" alt="" /></div>
+          <div><span className="stage-kicker">LOOK &amp; LEARN</span><h3>{subject || 'Today’s topic'} in pictures</h3><p>Look at the picture, then tell {teacherName || 'your teacher'} one thing you notice about this lesson.</p><button type="button" className="secondary" onClick={() => void speakFeedback(`Look closely at this ${subject || 'lesson'} picture. Tell me one thing you notice.`)}>🔊 Hear the prompt</button></div>
+        </div>
+        {uploadedPages(chapter).some(page => page.text) && <div className="chapter-source panel"><span className="stage-kicker">📖 FROM YOUR UPLOADED CHAPTER</span><p>Read these pages first. Your AI teacher uses this text when explaining the lesson and answering questions.</p>{uploadedPages(chapter).filter(page => page.text).slice(0, 4).map(page => <article key={page.number}><strong>Page {page.number}</strong><p>{page.text}</p></article>)}</div>}
+        {!session ? <button className="primary lesson-start" disabled={!teacherName || !hasReadableChapterContent} onClick={begin}>{hasReadableChapterContent ? '▶ Start Lesson' : 'Upload readable chapter first'}</button> : <div className="lesson-session"><div className="session-summary"><strong>{plan.mode.toUpperCase()}</strong><span>{adaptive.reason}</span><small>Confidence {adaptive.confidence}%</small></div><h3>Understanding check</h3>{lesson.checks[checkIndex] ? <><p>{lesson.checks[checkIndex].prompt}</p><div className="answer-row"><input maxLength={300} value={studentAnswer} onChange={e => setStudentAnswer(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') submitAnswer(); }} placeholder="Type your answer" aria-label="Your answer"/><button className="primary" disabled={!studentAnswer.trim()} onClick={submitAnswer}>Check Answer</button></div></> : <p>🎉 You completed this lesson’s checks. Final mastery: <strong>{session.masteryScore}%</strong>.</p>}{feedback && <div className="tt-notice feedback-box" role="status">{feedback}</div>}</div>}
       </section>}
       <section id="child-teacher" className="ai-teacher-card panel">
         <div className="ai-copy"><div className="ai-label">🤖 ALWAYS READY TO HELP</div><h2>Ask your AI teacher</h2><p>Ask a question about <strong>{chapter?.title || subject || 'your lesson'}</strong>. I’ll keep the explanation simple and age-appropriate.</p><div className="ai-input-row"><select value={language} onChange={e => setLanguage(e.target.value as TutorLanguage)} aria-label="Teacher language">{(['English', 'Hindi', 'Tamil', 'Telugu'] as TutorLanguage[]).map(item => <option key={item}>{item}</option>)}</select><input maxLength={500} value={question} onChange={e => setQuestion(e.target.value)} placeholder={`Ask about ${chapter?.title || subject || 'your lesson'}`} onKeyDown={e => { if (e.key === 'Enter') askTutor(); }} aria-label="Question for your AI teacher"/>        <button className="primary" disabled={!question.trim() || tutorBusy} onClick={askTutor}>{tutorBusy ? 'Thinking…' : 'Ask ✨'}</button></div><div className="voice-row"><button className={listening ? 'voice-button active' : 'voice-button'} onClick={() => void startVoice()} aria-pressed={listening}>{listening ? '■ Stop listening' : '🎙 Ask by voice'}</button>{speaking && <button className="voice-button" onClick={stopVoiceReply}>🔇 Stop reply</button>}<small className="voice-status" role="status">{voiceStatus}</small></div></div>

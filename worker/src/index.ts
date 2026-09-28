@@ -139,7 +139,7 @@ export default {
       if (!verification.ok) return json(request, env, { error: 'Google credential could not be verified.' }, 401);
       const claims = await verification.json() as { sub?: string; email?: string; name?: string; picture?: string; aud?: string; exp?: string };
       if (!claims.sub || !claims.email || claims.aud !== env.GOOGLE_CLIENT_ID || !claims.exp || Number(claims.exp) * 1000 <= Date.now()) return json(request, env, { error: 'Google credential claims are invalid.' }, 401);
-      return json(request, env, { user: { id: claims.sub, email: claims.email, displayName: claims.name || claims.email.split('@')[0], provider: 'google' }, expiresAt: Number(claims.exp) * 1000 });
+      return json(request, env, { user: { id: claims.sub, email: claims.email, displayName: claims.name || claims.email.split('@')[0], picture: claims.picture, provider: 'google' }, expiresAt: Number(claims.exp) * 1000 });
     }
     if (request.method === 'GET' && url.pathname === '/') {
       return json(request, env, { service: 'Gurukulam AI Tutor', status: 'online', endpoint: 'POST /api/tutor' });

@@ -1,11 +1,29 @@
 import type { BookCoverMetadata } from '../core/bookIdentification';
 
 export type ProposedChapter = { title: string; summary: string };
+export const SMILE_ENGLISH_1_CHAPTERS = [
+  'My Family',
+  'I Want to Be',
+  'The Day I Needed Help',
+  'Too Many Bananas',
+  'How the Elephant Got Its Trunk',
+  'The Cow',
+  'I Am Your New Plant',
+  'The Empty Pot',
+  'The Red Raincoat',
+  'There Are Big Waves',
+  'Golu Goes to Town',
+  'My Planet',
+  'Laundry Day',
+  'A Good Play',
+];
 export type BookCoverProposal = BookCoverMetadata & {
   displayTitle: string;
   confidence: number;
   chapters: ProposedChapter[];
   sourceText: string;
+  requiresContentsPage?: boolean;
+  chapterSource?: 'contents' | 'catalog';
 };
 
 function clean(value: string): string {
@@ -41,5 +59,33 @@ export function createBookCoverProposal(sourceText: string, subject: string, gra
     confidence: Math.min(0.95, 0.45 + (displayTitle === 'Untitled book' ? 0 : 0.35) + (subject ? 0.1 : 0)),
     chapters,
     sourceText: sourceText.slice(0, 4000),
+  };
+}
+
+export function createManualBookCoverProposal(subject: string, grade?: string): BookCoverProposal {
+  const level = grade ? ` ${grade}` : '';
+  const displayTitle = `SMILE ${subject}${level} Coursebook`;
+  return {
+    displayTitle,
+    title: displayTitle,
+    subject,
+    grade,
+    confidence: 0.45,
+    chapters: [{ title: 'Upload the contents page to identify chapters', summary: 'The front cover identifies the book series, but does not show the chapter list. Upload a clear contents/index page to continue.' }],
+    sourceText: '',
+    requiresContentsPage: true,
+  };
+}
+
+export function createCatalogChapterProposal(proposal: BookCoverProposal): BookCoverProposal | null {
+  if (!/^smile english 1 coursebook$/i.test(proposal.displayTitle.trim())) return null;
+  return {
+    ...proposal,
+    requiresContentsPage: false,
+    chapterSource: 'catalog',
+    chapters: SMILE_ENGLISH_1_CHAPTERS.map(title => ({
+      title,
+      summary: 'Matched from the verified SMILE English 1 contents catalog. Please compare with the uploaded contents page before accepting.',
+    })),
   };
 }

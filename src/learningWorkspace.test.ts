@@ -55,4 +55,47 @@ describe('learning workspace normalization', () => {
       teachers: [], subjects: ['Math', 'Science'], chapters: [], tests: [], today: [], homework: [], learningProgress: {},
     });
   });
+
+  it('stores teacher gender for selecting the teaching voice', () => {
+    const result = normalizeWorkspace({
+      child: {
+        subjects: ['English'],
+        teachers: [
+          { id: 'teacher-1', name: 'Arun', subjects: ['English'], voiceGender: 'male', voiceLanguage: 'English', enabled: true },
+          { id: 'teacher-2', name: 'Legacy', subjects: ['English'], enabled: true },
+        ],
+      },
+    });
+
+    expect(result.child.teachers.map(teacher => teacher.voiceGender)).toEqual(['male', 'female']);
+  });
+
+  it('removes legacy AI book lookup placeholder chapters', () => {
+    const result = normalizeWorkspace({
+      child: {
+        chapters: [{
+          id: 'junk',
+          subject: 'English',
+          title: 'My Family',
+          fileName: 'AI book lookup · SMILE English 1 Coursebook',
+          uploadedAt: '',
+          pages: [{ number: 1, text: 'placeholder' }],
+        }],
+      },
+    });
+    expect(result.child.chapters).toEqual([]);
+  });
+
+  it('requires newly uploaded chapters to be confirmed while preserving legacy chapters', () => {
+    const result = normalizeWorkspace({
+      child: {
+        chapters: [
+          { id: 'pending', subject: 'Math', title: 'Fractions', reviewStatus: 'review_required', pages: [{ number: 1, text: 'Parts of a whole' }] },
+          { id: 'legacy', subject: 'Math', title: 'Numbers', pages: [{ number: 1, text: 'Counting' }] },
+        ],
+      },
+    });
+
+    expect(result.child.chapters.map(chapter => chapter.reviewStatus)).toEqual(['review_required', 'confirmed']);
+  });
 });

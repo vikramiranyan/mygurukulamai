@@ -2,6 +2,7 @@ export type AuthUser = {
   id: string;
   email: string;
   displayName: string;
+  picture?: string;
   provider: 'google';
 };
 
@@ -67,6 +68,7 @@ export function credentialToSession(
       id: claims.sub,
       email: claims.email,
       displayName: claims.name?.trim() || claims.email.split('@')[0],
+      picture: claims.picture,
       provider: 'google'
     },
     expiresAt

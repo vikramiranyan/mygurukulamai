@@ -5,9 +5,13 @@ import type { Child } from './types/parent';
 import type { DriveSyncController } from './storage/driveSync';
 import type { ChildTimetableAudit, ChildTimetableRecord } from './storage/driveTimetableStore';
 import { uniqueSubjects } from './storage/driveTimetableStore';
+import { distinctLearningScopeGroups, sharedLearningScopeId, type LearningScopeGroup } from './storage/sharedLearningScope';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const OCR_SPACE_ENDPOINT = 'https://api.ocr.space/parse/image';
+const OCR_SPACE_API_KEY = 'helloworld';
+const OCR_SPACE_TIMEOUT_MS = 120_000;
 type TimetableDraft = { fileName: string; fileMimeType: string; fileSize: number; periods: ParsedTimetablePeriod[]; subjects: string[] };
 
 async function extractPdfText(file: File): Promise<string> {
@@ -52,9 +56,29 @@ async function extractPdfText(file: File): Promise<string> {
 }
 
 async function extractImageText(file: File): Promise<string> {
-  const mod = await import('tesseract.js');
-  const result = await mod.recognize(file, 'eng');
-  return result.data.text;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), OCR_SPACE_TIMEOUT_MS);
+  try {
+    const form = new FormData();
+    form.append('apikey', OCR_SPACE_API_KEY);
+    form.append('language', 'eng');
+    form.append('isOverlayRequired', 'false');
+    form.append('OCREngine', '2');
+    form.append('file', file, file.name);
+    const response = await fetch(OCR_SPACE_ENDPOINT, { method: 'POST', body: form, signal: controller.signal });
+    if (!response.ok) throw new Error(`OCR service returned HTTP ${response.status}.`);
+    const result = await response.json() as { IsErroredOnProcessing?: boolean; ErrorMessage?: string | string[]; ParsedResults?: Array<{ ParsedText?: string }> };
+    if (result.IsErroredOnProcessing) {
+      const message = Array.isArray(result.ErrorMessage) ? result.ErrorMessage.join(' ') : result.ErrorMessage;
+      throw new Error(message || 'OCR service could not process this image.');
+    }
+    return result.ParsedResults?.map(parsed => parsed.ParsedText || '').join('\n') || '';
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw new Error('OCR.space timed out while processing this image.');
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 function normalize(value: string): string { return value.trim().replace(/\s+/g, ' '); }
@@ -68,8 +92,17 @@ function diffSubjects(previous: string[], next: string[]) {
   };
 }
 
-export function ParentTimetableSubjects({ children, active, setActive, driveSync, onOpenSubjects }: { children: Child[]; active: string; setActive: (id: string) => void; driveSync: DriveSyncController; onOpenSubjects: () => void }) {
-  const child = children.find(c => c.id === active) || children[0];
+function timetableGroupLabel(child: Child): string {
+  return `${child.school || 'School not added'} · Class ${child.grade || '—'} · Section ${child.section || '—'}`;
+}
+
+export function ParentTimetableSubjects({ children, active, setActive, driveSync }: { children: Child[]; active: string; setActive: (id: string) => void; driveSync: DriveSyncController }) {
+  const timetableGroups = useMemo(() => distinctLearningScopeGroups(children), [children]);
+  const activeChild = children.find(c => c.id === active) || children[0];
+  const selectedGroup = activeChild ? timetableGroups.find(group => group.id === sharedLearningScopeId(activeChild)) || timetableGroups[0] : undefined;
+  const child = selectedGroup?.representative;
+  const scopeId = selectedGroup?.id || '';
+  const scopedChildren = selectedGroup?.children || [];
   const [record, setRecord] = useState<ChildTimetableRecord | null>(null);
   const [draft, setDraft] = useState<TimetableDraft | null>(null);
   const [notice, setNotice] = useState('');
@@ -82,13 +115,20 @@ export function ParentTimetableSubjects({ children, active, setActive, driveSync
     let cancelled = false;
     setDraft(null); setRecord(null); setNotice('');
     if (!child) return;
-    void driveSync.loadTimetable(child.id).then(value => {
-      if (!cancelled) setRecord(value);
-    }).catch(error => {
+    void (async () => {
+      const sharedRecord = await driveSync.loadTimetable(child.id, scopeId);
+      if (sharedRecord || cancelled) {
+        if (!cancelled) setRecord(sharedRecord);
+        return;
+      }
+      const legacySibling = scopedChildren.find(item => item.id !== child.id);
+      const fallbackRecord = legacySibling ? await driveSync.loadTimetable(legacySibling.id) : null;
+      if (!cancelled) setRecord(fallbackRecord);
+    })().catch(error => {
       if (!cancelled) setNotice(error instanceof Error ? error.message : "Could not load this child's timetable.");
     });
     return () => { cancelled = true; };
-  }, [child?.id, driveSync]);
+  }, [scopeId, driveSync]);
 
   const currentPeriods = draft?.periods ?? record?.periods ?? [];
   const currentSubjects = useMemo(
@@ -130,7 +170,7 @@ export function ParentTimetableSubjects({ children, active, setActive, driveSync
         uploadedAt: record?.uploadedAt || now, status: 'confirmed', periods: draft.periods, subjects,
         audit: [...(record?.audit || []), { action: 'upload', at: now }, { action: 'confirm', at: now }],
       };
-      await driveSync.saveTimetable(next);
+      await driveSync.saveTimetable({ ...next, childId: scopeId });
       setRecord(next); setDraft(null);
       const summary = [changes.added.length ? `New: ${changes.added.join(', ')}` : '', changes.removed.length ? `Removed: ${changes.removed.join(', ')}` : ''].filter(Boolean).join(' · ');
       setNotice(summary ? `Timetable confirmed for ${child.name}. ${summary}` : `Timetable confirmed for ${child.name}.`);
@@ -164,7 +204,7 @@ export function ParentTimetableSubjects({ children, active, setActive, driveSync
       fileSize: record?.fileSize || 0, originalDriveFileId: record?.originalDriveFileId, uploadedAt: record?.uploadedAt || now,
       status: 'confirmed', periods: currentPeriods, subjects, audit: [...(record?.audit || []), { ...audit, at: now }],
     };
-    const saved = await driveSync.saveTimetable(next); setRecord(saved); return saved;
+    const saved = await driveSync.saveTimetable({ ...next, childId: scopeId }); setRecord(saved); return saved;
   };
 
   const addSubject = async () => {
@@ -184,7 +224,7 @@ export function ParentTimetableSubjects({ children, active, setActive, driveSync
     if (currentSubjects.some(s => s !== subjectEdit && s.toLocaleLowerCase() === nextName.toLocaleLowerCase())) { setNotice('Another subject with that name already exists for this child.'); return; }
     const periods = currentPeriods.map(period => period.subject.toLocaleLowerCase() === subjectEdit.toLocaleLowerCase() ? { ...period, subject: nextName } : period);
     const subjects = uniqueSubjects(currentSubjects.map(s => s === subjectEdit ? nextName : s)); setBusy(true);
-    try { if (draft) setDraft({ ...draft, periods, subjects }); else { await driveSync.renameSubject(child.id, subjectEdit, nextName); await persistManualSubjects(subjects, { action: 'modify_subject', previousSubject: subjectEdit, newSubject: nextName }); } setSubjectEdit(null); setSubjectValue(''); setNotice(`Subject renamed to “${nextName}” for ${child.name}.`); }
+    try { if (draft) setDraft({ ...draft, periods, subjects }); else { await driveSync.renameSubject(scopeId, subjectEdit, nextName); await persistManualSubjects(subjects, { action: 'modify_subject', previousSubject: subjectEdit, newSubject: nextName }); } setSubjectEdit(null); setSubjectValue(''); setNotice(`Subject renamed to “${nextName}” for ${child.name}.`); }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Subject could not be modified.'); }
     finally { setBusy(false); }
   };
@@ -193,19 +233,18 @@ export function ParentTimetableSubjects({ children, active, setActive, driveSync
     if (currentPeriods.some(period => period.subject.toLocaleLowerCase() === subject.toLocaleLowerCase())) { setNotice(`“${subject}” is still used by a timetable period. Change/remove those periods before deleting the subject.`); return; }
     if (!confirm(`Delete ${subject} for ${child.name}?`)) return;
     const subjects = currentSubjects.filter(s => s.toLocaleLowerCase() !== subject.toLocaleLowerCase()); setBusy(true);
-    try { if (draft) setDraft({ ...draft, subjects }); else { await driveSync.deleteSubject(child.id, subject); await persistManualSubjects(subjects, { action: 'delete_subject', subject }); } setNotice(`Subject “${subject}” deleted for ${child.name}.`); }
+    try { if (draft) setDraft({ ...draft, subjects }); else { await driveSync.deleteSubject(scopeId, subject); await persistManualSubjects(subjects, { action: 'delete_subject', subject }); } setNotice(`Subject “${subject}” deleted for ${child.name}.`); }
     catch (error) { setNotice(error instanceof Error ? error.message : 'Subject could not be deleted.'); }
     finally { setBusy(false); }
   };
 
-  return <section className="parent-section">
-    <div className="section-heading"><div><small>MENU 2</small><h1>📅 TimeTable / Subjects</h1><p>Select a child first. Their timetable and subjects are isolated to that child.</p></div><select className="timetable-child" value={child.id} onChange={e => setActive(e.target.value)} disabled={busy} aria-label="Select child">{children.map(c => <option key={c.id} value={c.id}>{c.name || 'Unnamed child'}</option>)}</select></div>
+  return <section className="parent-section timetable-page">
     {notice && <div className="tt-notice" role="status">{notice}</div>}
-    <div className="tt-upload panel"><div><h2>📤 Upload TimeTable</h2><p>For <strong>{child.name || 'selected child'}</strong>. PDF, JPG, JPEG or PNG · maximum 10 MB.</p></div><label className="upload-button">{busy ? 'Processing…' : 'Choose file'}<input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={busy} onChange={processFile}/></label></div>
-    {(draft || record) && <><div className="tt-status"><span>Child: <b>{child.name}</b></span><span>File: <b>{draft?.fileName || record?.fileName}</b></span><span>Status: <b>{draft ? 'Review required' : record?.status}</b></span><span>Subjects: <b>{currentSubjects.length}</b></span></div>
-      {currentPeriods.length > 0 && <div className="tt-review panel"><div className="section-heading"><div><small>AI REVIEW</small><h2>Review / Correct TimeTable</h2></div><span>{currentPeriods.length} detected periods</span></div><div className="tt-table-wrap"><table><thead><tr><th>Day</th><th>Start</th><th>End</th><th>Subject</th><th></th></tr></thead><tbody>{currentPeriods.map((period, index) => <tr key={`${period.day}-${period.start}-${index}`}><td><select value={period.day} onChange={e => updatePeriod(index, 'day', e.target.value)} disabled={busy}>{DAYS.map(day => <option key={day}>{day}</option>)}</select></td><td><input type="time" value={period.start} onChange={e => updatePeriod(index, 'start', e.target.value)} disabled={busy}/></td><td><input type="time" value={period.end} onChange={e => updatePeriod(index, 'end', e.target.value)} disabled={busy}/></td><td><input value={period.subject} onChange={e => updatePeriod(index, 'subject', e.target.value)} disabled={busy}/></td><td><button className="danger-link" disabled={busy} onClick={() => setDraft(makeDraft(currentPeriods.filter((_, i) => i !== index)))}>Remove</button></td></tr>)}</tbody></table></div><div className="actions"><button className="secondary" disabled={busy} onClick={() => setDraft(makeDraft([...currentPeriods, { day: 'Monday', start: '10:00', end: '10:40', subject: '', type: 'class' }]))}>＋ Add Period</button>{draft && <button className="primary" disabled={busy} onClick={() => void saveDraft()}>✓ Confirm & Save</button>}</div></div>}
+    <div className="timetable-summary"><div className="timetable-child-summary"><span className="timetable-child-avatar">{child.gender === 'Male' ? '👦' : '👧'}</span><div><strong>{timetableGroupLabel(child)}</strong><small>Selected learning group</small></div><select className="timetable-child" value={scopeId} onChange={e => { const group = timetableGroups.find(item => item.id === e.target.value); if (group) setActive(group.representative.id); }} disabled={busy} aria-label="Select school, class and section">{timetableGroups.map(group => <option key={group.id} value={group.id}>{timetableGroupLabel(group.representative)}</option>)}</select></div><div className="timetable-stat"><span>📄</span><div><strong>{record?.fileName || 'No timetable'}</strong><small>Current file</small></div></div><div className="timetable-stat"><span>✓</span><div><strong>{record?.status || (draft ? 'Review' : 'Pending')}</strong><small>Status</small></div></div><div className="timetable-stat"><span>📚</span><div><strong>{currentSubjects.length}</strong><small>Subjects</small></div></div><div className="timetable-upload-card"><label className="upload-button">{busy ? 'Processing…' : '☁ Upload TimeTable'}<input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={busy} onChange={processFile}/></label><small>PDF, JPG, JPEG or PNG · Max 10 MB</small></div></div>
+    {(draft || record) && <>
+      {currentPeriods.length > 0 && <div className="timetable-workspace"><div className="tt-review panel"><div className="section-heading"><div><small>REVIEW / CORRECT TIMETABLE</small><h2>Review / Correct TimeTable</h2><p>Verify and edit the detected periods for your child.</p></div><span>{currentPeriods.length} detected periods</span></div><div className="tt-table-wrap"><table><thead><tr><th>#</th><th>Day</th><th>Start Time</th><th>End Time</th><th>Subject</th><th>Actions</th></tr></thead><tbody>{currentPeriods.map((period, index) => <tr key={`${period.day}-${period.start}-${index}`}><td>{index + 1}</td><td><select value={period.day} onChange={e => updatePeriod(index, 'day', e.target.value)} disabled={busy}>{DAYS.map(day => <option key={day}>{day}</option>)}</select></td><td><input type="time" value={period.start} onChange={e => updatePeriod(index, 'start', e.target.value)} disabled={busy}/></td><td><input type="time" value={period.end} onChange={e => updatePeriod(index, 'end', e.target.value)} disabled={busy}/></td><td><input value={period.subject} onChange={e => updatePeriod(index, 'subject', e.target.value)} disabled={busy}/></td><td><button className="danger-link" disabled={busy} onClick={() => setDraft(makeDraft(currentPeriods.filter((_, i) => i !== index)))}>🗑 Remove</button></td></tr>)}</tbody></table></div><div className="actions"><button className="secondary" disabled={busy} onClick={() => setDraft(makeDraft([...currentPeriods, { day: 'Monday', start: '10:00', end: '10:40', subject: '', type: 'class' }]))}>＋ Add Period</button>{draft && <button className="primary" disabled={busy} onClick={() => void saveDraft()}>▣ Save Changes</button>}</div></div>
+      <div className="panel subject-management"><div className="section-heading"><div><small>SUBJECT MANAGEMENT</small><h2>📚 Subjects</h2><p>Manage subjects and chapters.</p></div></div><div className="subject-add-row"><input value={newSubject} onChange={e => setNewSubject(e.target.value)} placeholder="Add subject manually" disabled={busy}/><button className="primary" disabled={busy} onClick={() => void addSubject()}>＋ Add Subject</button></div><div className="subject-list">{currentSubjects.map(subject => <div className="subject-row" key={subject}>{subjectEdit === subject ? <><input value={subjectValue} onChange={e => setSubjectValue(e.target.value)} disabled={busy}/><button className="primary" disabled={busy} onClick={() => void modifySubject()}>Save</button><button className="secondary" disabled={busy} onClick={() => setSubjectEdit(null)}>Cancel</button></> : <><strong>{subject}</strong><span className="subject-actions"><button disabled={busy} onClick={() => { setSubjectEdit(subject); setSubjectValue(subject); }}>✎ Modify</button><button className="danger" disabled={busy} onClick={() => void deleteSubject(subject)}>Delete</button></span></>}</div>)}</div>{!currentSubjects.length && <p>No subjects yet. Add the first subject manually or upload a timetable to extract subjects.</p>}</div></div>}
     </>}
-    <div className="panel subject-management"><div className="section-heading"><div><small>SUBJECT MANAGEMENT</small><h2>📚 Subjects for {child.name}</h2><p>{record ? 'Timetable subjects can be modified here. You can also add subjects that are not present in the timetable.' : 'No timetable is uploaded. You can create the child’s subjects manually now and add a timetable later.'}</p></div><button className="secondary" onClick={onOpenSubjects}>Open book & chapter tools</button></div><div className="subject-add-row"><input value={newSubject} onChange={e => setNewSubject(e.target.value)} placeholder="Add subject manually" disabled={busy}/><button className="primary" disabled={busy} onClick={() => void addSubject()}>＋ Add Subject</button></div><div className="subject-list">{currentSubjects.map(subject => <div className="subject-row" key={subject}>{subjectEdit === subject ? <><input value={subjectValue} onChange={e => setSubjectValue(e.target.value)} disabled={busy}/><button className="primary" disabled={busy} onClick={() => void modifySubject()}>Save</button><button className="secondary" disabled={busy} onClick={() => setSubjectEdit(null)}>Cancel</button></> : <><strong>{subject}</strong><span className="subject-actions"><button className="secondary" disabled={busy} onClick={onOpenSubjects}>📖 Find book / chapters</button><button disabled={busy} onClick={() => { setSubjectEdit(subject); setSubjectValue(subject); }}>✎ Modify</button><button className="danger" disabled={busy} onClick={() => void deleteSubject(subject)}>Delete</button></span></>}</div>)}</div>{!currentSubjects.length && <p>No subjects yet. Add the first subject manually or upload a timetable to extract subjects.</p>}</div>
-    {!record && !draft && <div className="coming-section panel"><div className="coming-icon">📚</div><h2>No timetable uploaded for {child.name} yet.</h2><p>You can still add, modify and delete subjects manually above. Uploading a timetable later will merge its extracted subjects into this child’s existing subject list.</p></div>}
+    {!record && !draft && <div className="coming-section panel"><div className="coming-icon">📚</div><h2>No timetable uploaded yet.</h2><p>You can still add, modify and delete subjects manually above. Uploading a timetable later will merge its extracted subjects into the selected learning group.</p></div>}
   </section>;
 }

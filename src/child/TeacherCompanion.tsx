@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
-type Props = { name?: string | null; subject?: string; speaking?: boolean; listening?: boolean; onAsk?: () => void };
+type Props = { name?: string | null; subject?: string; gender?: 'female' | 'male'; speaking?: boolean; listening?: boolean; onAsk?: () => void };
 
 function makeMaterial(color: number) {
   return new THREE.MeshStandardMaterial({ color, roughness: 0.78 });
 }
 
-export function TeacherCompanion({ name, subject, speaking = false, listening = false, onAsk }: Props) {
+export function TeacherCompanion({ name, subject, gender = 'female', speaking = false, listening = false, onAsk }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const speakingRef = useRef(speaking);
   const listeningRef = useRef(listening);
@@ -163,12 +163,12 @@ export function TeacherCompanion({ name, subject, speaking = false, listening = 
   const state = listening ? 'Listening' : speaking ? 'Speaking' : 'Ready to help';
   return <aside className="teacher-companion" aria-label={`${name || 'Your teacher'} companion`}>
     <div className="teacher-companion-scene" ref={mountRef}>
-      <div className="teacher-companion-fallback" aria-hidden="true">👩🏽‍🏫</div>
+      <div className="teacher-companion-fallback" aria-hidden="true">{gender === 'male' ? '👨🏽‍🏫' : '👩🏽‍🏫'}</div>
     </div>
     <div className="teacher-companion-copy">
       <span className="teacher-companion-status">{state}</span>
       <strong>{name || 'Your teacher'}</strong>
-      <small>{subject ? `Here for ${subject}` : 'Ready for your next adventure'}</small>
+      <small>{subject ? `Here for ${subject} · Indian ${gender} voice` : 'Ready for your next adventure'}</small>
       {onAsk && <button type="button" onClick={onAsk}>Ask me <span>→</span></button>}
     </div>
   </aside>;
