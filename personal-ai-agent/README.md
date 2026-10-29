@@ -1,24 +1,29 @@
-# Personal AI Agent (cloud prototype)
+# Personal AI Agent — Cloudflare Workers
 
-This app lives in its own subdirectory so it does not overwrite the existing Gurukulam project.
+This app is stored in the `personal-ai-agent` folder of your existing GitHub repository. No local download, Ollama installation, or private server is required.
 
-## Deploy
-1. In Vercel, import https://github.com/vikramiranyan/mygurukulamai
-2. Set the project Root Directory to `personal-ai-agent`.
-3. Add environment variables:
-   - `OPENROUTER_API_KEY`: your secret API key from https://openrouter.ai/settings/keys
-   - `OPENROUTER_MODEL`: `openrouter/free`
-4. Deploy. After adding/changing environment variables, redeploy.
-5. Open the Vercel URL.
+## Deploy from GitHub to Cloudflare (no Vercel)
 
-No local download or Ollama installation is required for this cloud version.
+1. Sign in to or create a Cloudflare account: https://dash.cloudflare.com/
+2. Open **Workers & Pages** → **Create application** → choose **GitHub**.
+3. Connect GitHub if prompted, then select `vikramiranyan/mygurukulamai`.
+4. Set the project root directory to `personal-ai-agent`.
+5. Build command: `npx @opennextjs/cloudflare build`
+6. Deploy command: `npx @opennextjs/cloudflare deploy`
+7. In Worker settings → **Variables and Secrets**, add secret `OPENROUTER_API_KEY` using your own key from https://openrouter.ai/settings/keys. Add text variable `OPENROUTER_MODEL` with value `openrouter/free`.
+8. Deploy and open the `*.workers.dev` URL Cloudflare provides.
+
+Official guide: https://developers.cloudflare.com/workers/framework-guides/web-apps/opennext/
+Git integration guide: https://developers.cloudflare.com/workers/ci-cd/builds/
 
 ## Current capabilities
-- Web chat interface
-- Task planning and generated downloadable text/code files via model tool calls
-- API key stays server-side
 
-## Not yet enabled
-No arbitrary shell execution, browser control, persistent memory, accounts, or auto-deploying generated code. Add these only with isolation, authentication, rate limits, and approval gates.
+- Cloud-hosted chat interface
+- Task planning and downloadable code/text files through model tool calls
+- API key read server-side from an environment secret
 
-Free model routing is rate-limited and model availability can vary. Do not commit API keys or other secrets to GitHub.
+## Not yet implemented
+
+Arbitrary shell execution, browser/computer control, durable memory, user accounts, and automated deployment of generated applications are not enabled yet. Add these only with isolation, authentication, rate limits, and approval gates.
+
+Workers Free has execution limits; OpenRouter free model availability and rate limits vary. Never commit API keys or other secrets to GitHub.
