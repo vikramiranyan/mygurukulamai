@@ -7,7 +7,7 @@ const tools = [
 ];
 export async function POST(req: NextRequest) {
  const key=process.env.OPENROUTER_API_KEY;
- if(!key) return NextResponse.json({error:"Deployment setup needed: add OPENROUTER_API_KEY in Vercel Project Settings → Environment Variables."},{status:503});
+ if(!key) return NextResponse.json({error:"Deployment setup needed: add OPENROUTER_API_KEY in your Cloudflare Worker settings → Variables and Secrets."},{status:503});
  try {
   const body=await req.json();
   if(!Array.isArray(body.messages)||!body.messages.length) return NextResponse.json({error:"Send a task first."},{status:400});
