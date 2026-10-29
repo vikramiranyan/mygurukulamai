@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   const messages:any[]=[{role:"system",content:system},...body.messages.slice(-12).map((m:any)=>({role:m.role==="assistant"?"assistant":"user",content:String(m.content||"").slice(0,12000)}))];
   const artifacts:{name:string;content:string}[]=[]; let answer="";
   for(let turn=0;turn<4;turn++){
-   const r=await fetch("https://openrouter.ai/api/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+key,"Content-Type":"application/json","HTTP-Referer":process.env.NEXT_PUBLIC_APP_URL||"https://vercel.com","X-Title":"Personal AI Agent"},body:JSON.stringify({model:process.env.OPENROUTER_MODEL||"openrouter/free",messages,tools,tool_choice:"auto",temperature:0.2}),signal:AbortSignal.timeout(50000)});
+   const r=await fetch("https://openrouter.ai/api/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+key,"Content-Type":"application/json","HTTP-Referer":process.env.NEXT_PUBLIC_APP_URL||"https://openrouter.ai","X-Title":"Personal AI Agent"},body:JSON.stringify({model:process.env.OPENROUTER_MODEL||"openrouter/free",messages,tools,tool_choice:"auto",temperature:0.2}),signal:AbortSignal.timeout(50000)});
    const data=await r.json(); if(!r.ok) return NextResponse.json({error:data?.error?.message||"AI provider request failed. Check the model and API key."},{status:502});
    const msg=data.choices?.[0]?.message; if(!msg) return NextResponse.json({error:"AI provider returned no response."},{status:502});
    messages.push(msg); const calls=msg.tool_calls||[];
