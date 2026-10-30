@@ -38,7 +38,7 @@ export default function Home() {
       if (speakReplies && typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(answer);
-        utterance.lang = "en-IN";
+        utterance.lang = /[\u0B80-\u0BFF]/.test(answer) ? "ta-IN" : "en-IN";
         window.speechSynthesis.speak(utterance);
       }
     } catch (err) { setError(err instanceof Error ? err.message : "Unexpected error"); }
@@ -54,7 +54,7 @@ export default function Home() {
     try {
       window.speechSynthesis?.cancel();
       const recognition = new Speech();
-      recognition.lang = "en-IN";
+      recognition.lang = "ta-IN";
       recognition.continuous = false;
       recognition.interimResults = false;
       recognition.onresult = (event: any) => {
