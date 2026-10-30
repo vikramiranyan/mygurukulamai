@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
    messages.push(msg); const calls=msg.tool_calls||[];
    if(!calls.length){answer=msg.content||"I couldn't produce a response. Try rephrasing the task.";break;}
    for(const c of calls){let a:any={};try{a=JSON.parse(c.function.arguments||"{}")}catch{} let result:any;
-    if(c.function.name==="create_file"){const name=String(a.name||"agent-output.txt").split(/[\\/]/).pop().replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,100)||"agent-output.txt";const content=String(a.content||"").slice(0,80000);artifacts.push({name,content});result={ok:true,name,characters:content.length};}
+    if(c.function.name==="create_file"){const name=(String(a.name||"agent-output.txt").split(/[\\/]/).pop()||"agent-output.txt").replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,100)||"agent-output.txt";const content=String(a.content||"").slice(0,80000);artifacts.push({name,content});result={ok:true,name,characters:content.length};}
     else if(c.function.name==="plan_task") result={ok:true,steps:Array.isArray(a.steps)?a.steps.slice(0,20):[]};
     else result={ok:false,error:"Tool not available"};
     messages.push({role:"tool",tool_call_id:c.id,content:JSON.stringify(result)});
